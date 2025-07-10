@@ -14,6 +14,20 @@ import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
+data class MethodComplexity(
+    val methodName: String,
+    val cyclomaticComplexity: Int,
+    val lineCount: Int
+)
+
+data class ComplexityAnalysis(
+    val methods: List<MethodComplexity>,
+    val totalComplexity: Int,
+    val averageComplexity: Double,
+    val maxComplexity: Int,
+    val complexMethods: List<MethodComplexity> // CC > 10
+)
+
 data class ClassAnalysis(
     val className: String,
     val fileName: String,
@@ -21,7 +35,8 @@ data class ClassAnalysis(
     val methodCount: Int,
     val propertyCount: Int,
     val methodDetails: Map<String, Set<String>>,
-    val suggestions: List<Suggestion>
+    val suggestions: List<Suggestion>,
+    val complexity: ComplexityAnalysis
 )
 
 data class ProjectReport(
@@ -112,7 +127,8 @@ fun analyzeClass(classOrObject: KtClassOrObject, fileName: String): ClassAnalysi
     var lcom = pairsWithoutCommon - pairsWithCommon
     if (lcom < 0) lcom = 0
 
-    val suggestions = generateSuggestions(lcom, methodProps, props)
+    val complexity = analyzeComplexity(methods)
+    val suggestions = generateSuggestions(lcom, methodProps, props, complexity)
 
     return ClassAnalysis(
         className = className,
@@ -121,7 +137,8 @@ fun analyzeClass(classOrObject: KtClassOrObject, fileName: String): ClassAnalysi
         methodCount = methods.size,
         propertyCount = props.size,
         methodDetails = methodProps,
-        suggestions = suggestions
+        suggestions = suggestions,
+        complexity = complexity
     )
 }
 
@@ -131,34 +148,90 @@ data class Suggestion(
     val tooltip: String
 )
 
-fun generateSuggestions(lcom: Int, methodProps: Map<String, Set<String>>, props: List<String>): List<Suggestion> {
-    val suggestions = mutableListOf<Suggestion>()
-    
-    // Primary LCOM-based suggestion
-    when {
-        lcom == 0 -> suggestions.add(Suggestion(
-            "✅", 
-            "Excellent cohesion",
-            "All methods share properties effectively. This indicates a well-designed class with strong internal cohesion."
-        ))
-        lcom in 1..2 -> suggestions.add(Suggestion(
-            "👍", 
-            "Good cohesion",
-            "Minor improvements possible. Look for opportunities to increase property sharing between methods."
-        ))
-        lcom in 3..5 -> suggestions.add(Suggestion(
-            "⚠️", 
-            "Moderate cohesion - consider refactoring",
-            "Some methods don't share properties. Group related functionality or split into focused classes."
-        ))
-        lcom > 5 -> suggestions.add(Suggestion(
-            "❌", 
-            "Poor cohesion - refactoring needed",
-            "High LCOM indicates multiple responsibilities. Apply Single Responsibility Principle by extracting related methods into separate classes."
-        ))
+fun analyzeComplexity(methods: List<KtNamedFunction>): ComplexityAnalysis {
+    val methodComplexities = methods.map { method ->
+        val complexity = calculateCyclomaticComplexity(method)
+        val lineCount = method.text.lines().size
+        MethodComplexity(method.name ?: "anonymous", complexity, lineCount)
     }
     
-    // Specific actionable suggestions
+    val totalComplexity = methodComplexities.sumOf { it.cyclomaticComplexity }
+    val averageComplexity = if (methodComplexities.isNotEmpty()) {
+        totalComplexity.toDouble() / methodComplexities.size
+    } else 0.0
+    val maxComplexity = methodComplexities.maxOfOrNull { it.cyclomaticComplexity } ?: 0
+    val complexMethods = methodComplexities.filter { it.cyclomaticComplexity > 10 }
+    
+    return ComplexityAnalysis(
+        methods = methodComplexities,
+        totalComplexity = totalComplexity,
+        averageComplexity = averageComplexity,
+        maxComplexity = maxComplexity,
+        complexMethods = complexMethods
+    )
+}
+
+fun calculateCyclomaticComplexity(method: KtNamedFunction): Int {
+    var complexity = 1 // Base complexity
+    
+    method.bodyExpression?.accept(object : KtTreeVisitorVoid() {
+        override fun visitIfExpression(expression: KtIfExpression) {
+            complexity++
+            super.visitIfExpression(expression)
+        }
+        
+        override fun visitWhenExpression(expression: KtWhenExpression) {
+            // Add 1 for each when entry (branch)
+            complexity += expression.entries.size
+            super.visitWhenExpression(expression)
+        }
+        
+        override fun visitForExpression(expression: KtForExpression) {
+            complexity++
+            super.visitForExpression(expression)
+        }
+        
+        override fun visitWhileExpression(expression: KtWhileExpression) {
+            complexity++
+            super.visitWhileExpression(expression)
+        }
+        
+        override fun visitDoWhileExpression(expression: KtDoWhileExpression) {
+            complexity++
+            super.visitDoWhileExpression(expression)
+        }
+        
+        override fun visitTryExpression(expression: KtTryExpression) {
+            // Add 1 for each catch clause
+            complexity += expression.catchClauses.size
+            super.visitTryExpression(expression)
+        }
+        
+        override fun visitBinaryExpression(expression: KtBinaryExpression) {
+            // Add complexity for logical operators (&& and ||)
+            when (expression.operationToken.toString()) {
+                "ANDAND", "OROR" -> complexity++
+            }
+            super.visitBinaryExpression(expression)
+        }
+        
+        override fun visitCallExpression(expression: KtCallExpression) {
+            // Add complexity for elvis operator (?:) and safe calls that might branch
+            val calleeText = expression.calleeExpression?.text
+            if (calleeText?.contains("?:") == true) {
+                complexity++
+            }
+            super.visitCallExpression(expression)
+        }
+    })
+    
+    return complexity
+}
+
+fun generateSuggestions(lcom: Int, methodProps: Map<String, Set<String>>, props: List<String>, complexity: ComplexityAnalysis): List<Suggestion> {
+    val suggestions = mutableListOf<Suggestion>()
+    
+    // Specific actionable suggestions only
     val unusedProps = props.filter { prop -> 
         methodProps.values.none { it.contains(prop) } 
     }
@@ -184,12 +257,82 @@ fun generateSuggestions(lcom: Int, methodProps: Map<String, Set<String>>, props:
         ))
     }
     
-    // Additional pattern-based suggestions
-    if (lcom > 3 && methodProps.size > 8) {
+    // Pattern-based suggestions for poor cohesion
+    if (lcom > 5 && methodProps.size > 8) {
         suggestions.add(Suggestion(
             "🔀",
-            "Large class with poor cohesion",
-            "Consider splitting into ${if (lcom > 6) "3-4" else "2-3"} smaller, focused classes based on method-property relationships."
+            "Split large unfocused class",
+            "Consider breaking into ${if (lcom > 8) "3-4" else "2-3"} smaller classes based on method-property relationships."
+        ))
+    } else if (lcom > 3) {
+        suggestions.add(Suggestion(
+            "🎯",
+            "Group related functionality",
+            "Look for methods that share properties and consider extracting them into focused classes."
+        ))
+    }
+    
+    // Method complexity suggestions
+    val methodCount = methodProps.size
+    if (methodCount > 15) {
+        suggestions.add(Suggestion(
+            "📏",
+            "Class has $methodCount methods",
+            "Large classes are harder to maintain. Consider if this class has too many responsibilities."
+        ))
+    }
+    
+    // Property usage patterns
+    val propertyUsage = props.map { prop ->
+        val usageCount = methodProps.values.count { it.contains(prop) }
+        prop to usageCount
+    }
+    
+    val lightlyUsedProps = propertyUsage.filter { it.second in 1..2 && methodCount > 3 }.map { it.first }
+    
+    if (lightlyUsedProps.isNotEmpty()) {
+        suggestions.add(Suggestion(
+            "⚡",
+            "${lightlyUsedProps.size} rarely used ${if (lightlyUsedProps.size == 1) "property" else "properties"}",
+            "Properties: ${lightlyUsedProps.joinToString(", ")}. Consider if these belong in a separate class."
+        ))
+    }
+    
+    // Complexity-based suggestions
+    if (complexity.complexMethods.isNotEmpty()) {
+        val complexMethodNames = complexity.complexMethods.take(3).joinToString(", ") { it.methodName } +
+                if (complexity.complexMethods.size > 3) " +${complexity.complexMethods.size - 3} more" else ""
+        
+        suggestions.add(Suggestion(
+            "🧠",
+            "${complexity.complexMethods.size} complex ${if (complexity.complexMethods.size == 1) "method" else "methods"} (CC > 10)",
+            "Methods: $complexMethodNames. Break down complex logic, extract helper methods, or simplify conditional logic."
+        ))
+    }
+    
+    if (complexity.averageComplexity > 7) {
+        suggestions.add(Suggestion(
+            "📊",
+            "High average complexity (${String.format("%.1f", complexity.averageComplexity)})",
+            "Consider refactoring methods to reduce branching logic and improve readability."
+        ))
+    }
+    
+    val veryComplexMethods = complexity.methods.filter { it.cyclomaticComplexity > 20 }
+    if (veryComplexMethods.isNotEmpty()) {
+        suggestions.add(Suggestion(
+            "🚨",
+            "${veryComplexMethods.size} very complex ${if (veryComplexMethods.size == 1) "method" else "methods"} (CC > 20)",
+            "Methods: ${veryComplexMethods.joinToString(", ") { it.methodName }}. These methods are extremely difficult to test and maintain."
+        ))
+    }
+    
+    // No suggestions for well-designed classes
+    if (suggestions.isEmpty() && lcom <= 2 && complexity.averageComplexity <= 5) {
+        suggestions.add(Suggestion(
+            "✨",
+            "Well-designed class",
+            "Good cohesion and low complexity. Consider this class as a model for others."
         ))
     }
     
@@ -199,47 +342,114 @@ fun generateSuggestions(lcom: Int, methodProps: Map<String, Set<String>>, props:
 fun generateSummary(analyses: List<ClassAnalysis>) {
     val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
     
-    println("\n📊 KOTLIN METRICS ANALYSIS SUMMARY")
-    println("Generated: $timestamp")
-    println("-".repeat(50))
+    println("\n" + "=".repeat(60))
+    println("               📊 KOTLIN METRICS ANALYSIS SUMMARY")
+    println("                    Generated: $timestamp")
+    println("=".repeat(60))
     
-    println("Total classes analyzed: ${analyses.size}")
-    if (analyses.isNotEmpty()) {
-        println("Average LCOM: ${analyses.map { it.lcom }.average().let { "%.2f".format(it) }}")
-        
-        val cohesionDistribution = analyses.groupBy { 
-            when (it.lcom) {
-                0 -> "Excellent"
-                in 1..2 -> "Good"
-                in 3..5 -> "Moderate"
-                else -> "Poor"
-            }
-        }
-        
-        println("\nCohesion Quality:")
-        cohesionDistribution.forEach { (level, classes) ->
-            val icon = when (level) {
-                "Excellent" -> "✅"
-                "Good" -> "👍"
-                "Moderate" -> "⚠️"
-                else -> "❌"
-            }
-            println("  $icon $level: ${classes.size} classes")
-        }
-        
-        val worstClasses = analyses.filter { it.lcom > 5 }
-        if (worstClasses.isNotEmpty()) {
-            println("\n❌ Classes needing attention:")
-            worstClasses.take(3).forEach { 
-                println("  • ${it.className} (LCOM: ${it.lcom})")
-            }
-        }
-    } else {
-        println("No Kotlin classes found to analyze.")
+    if (analyses.isEmpty()) {
+        println("\n⚠️  No Kotlin classes found to analyze.")
+        println("   Make sure you're running from a Kotlin project directory.")
+        println("\n📄 Empty report generated: kotlin-metrics-report.html")
+        println("=".repeat(60))
+        return
     }
     
-    println("\n📄 Detailed report generated: kotlin-metrics-report.html")
-    println("-".repeat(50))
+    // Project Overview
+    val totalMethods = analyses.sumOf { it.complexity.methods.size }
+    val totalProperties = analyses.sumOf { it.propertyCount }
+    
+    println("\n📈 PROJECT OVERVIEW")
+    println("   Classes analyzed: ${analyses.size}")
+    println("   Total methods: $totalMethods")
+    println("   Total properties: $totalProperties")
+    
+    // Key Metrics
+    val avgLcom = analyses.map { it.lcom }.average()
+    val avgComplexity = analyses.map { it.complexity.averageComplexity }.average()
+    
+    println("\n🎯 KEY METRICS")
+    println("   Average LCOM: ${String.format("%.2f", avgLcom)} ${getLcomQualityIcon(avgLcom)}")
+    println("   Average Complexity: ${String.format("%.2f", avgComplexity)} ${getComplexityQualityIcon(avgComplexity)}")
+    
+    // Quality Distribution
+    val qualityDistribution = analyses.groupBy { 
+        when {
+            it.lcom <= 2 && it.complexity.averageComplexity <= 5 -> "Excellent"
+            it.lcom <= 5 && it.complexity.averageComplexity <= 7 -> "Good"
+            it.lcom <= 8 && it.complexity.averageComplexity <= 10 -> "Moderate"
+            else -> "Poor"
+        }
+    }
+    
+    println("\n📊 QUALITY DISTRIBUTION")
+    qualityDistribution.forEach { (level, classes) ->
+        val icon = when (level) {
+            "Excellent" -> "✅"
+            "Good" -> "👍"
+            "Moderate" -> "⚠️"
+            else -> "❌"
+        }
+        val percentage = (classes.size * 100.0 / analyses.size).let { "%.1f".format(it) }
+        println("   $icon $level: ${classes.size} classes ($percentage%)")
+    }
+    
+    // Issues Summary
+    val complexMethods = analyses.sumOf { it.complexity.complexMethods.size }
+    val veryComplexMethods = analyses.sumOf { analysis -> 
+        analysis.complexity.methods.count { it.cyclomaticComplexity > 20 }
+    }
+    val poorCohesionClasses = analyses.count { it.lcom > 5 }
+    
+    if (complexMethods > 0 || poorCohesionClasses > 0) {
+        println("\n⚠️  ISSUES DETECTED")
+        if (poorCohesionClasses > 0) {
+            println("   📊 $poorCohesionClasses ${if (poorCohesionClasses == 1) "class has" else "classes have"} poor cohesion (LCOM > 5)")
+        }
+        if (complexMethods > 0) {
+            println("   🧠 $complexMethods ${if (complexMethods == 1) "method is" else "methods are"} complex (CC > 10)")
+        }
+        if (veryComplexMethods > 0) {
+            println("   🚨 $veryComplexMethods ${if (veryComplexMethods == 1) "method is" else "methods are"} very complex (CC > 20)")
+        }
+    } else {
+        println("\n✨ EXCELLENT CODE QUALITY")
+        println("   No significant issues detected!")
+        println("   All classes have good cohesion and low complexity.")
+    }
+    
+    // Worst Offenders
+    val worstClasses = analyses
+        .filter { it.lcom > 5 || it.complexity.averageComplexity > 10 }
+        .sortedWith(compareByDescending<ClassAnalysis> { it.lcom }.thenByDescending { it.complexity.averageComplexity })
+    
+    if (worstClasses.isNotEmpty()) {
+        println("\n🎯 PRIORITY REFACTORING TARGETS")
+        worstClasses.take(5).forEach { analysis ->
+            val lcomBadge = if (analysis.lcom > 5) "LCOM:${analysis.lcom}" else ""
+            val ccBadge = if (analysis.complexity.averageComplexity > 10) "CC:${String.format("%.1f", analysis.complexity.averageComplexity)}" else ""
+            val badges = listOf(lcomBadge, ccBadge).filter { it.isNotEmpty() }.joinToString(" ")
+            println("   📝 ${analysis.className} ($badges)")
+        }
+    }
+    
+    println("\n📄 Interactive report: kotlin-metrics-report.html")
+    println("   Open in browser for detailed analysis, charts, and suggestions")
+    println("=".repeat(60))
+}
+
+fun getLcomQualityIcon(avgLcom: Double): String = when {
+    avgLcom <= 2 -> "✅"
+    avgLcom <= 5 -> "👍"
+    avgLcom <= 8 -> "⚠️"
+    else -> "❌"
+}
+
+fun getComplexityQualityIcon(avgComplexity: Double): String = when {
+    avgComplexity <= 5 -> "✅"
+    avgComplexity <= 7 -> "👍"
+    avgComplexity <= 10 -> "⚠️"
+    else -> "❌"
 }
 
 fun generateHtmlReport(analyses: List<ClassAnalysis>) {
@@ -300,6 +510,16 @@ fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
         }
     }
     
+    val complexityDistribution = analyses.flatMap { it.complexity.methods }.groupBy {
+        when (it.cyclomaticComplexity) {
+            1 -> "Simple (1)"
+            in 2..5 -> "Low (2-5)"
+            in 6..10 -> "Moderate (6-10)"
+            in 11..20 -> "High (11-20)"
+            else -> "Very High (21+)"
+        }
+    }
+    
     return """
 <div class="container-fluid py-4">
     <div class="row">
@@ -321,7 +541,7 @@ fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
             <div class="card metric-card">
                 <div class="card-body text-center">
                     <h5 class="card-title">Average LCOM</h5>
@@ -329,7 +549,23 @@ fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
+            <div class="card metric-card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Average CC</h5>
+                    <h2 class="text-info">${if (analyses.isNotEmpty()) "%.1f".format(analyses.map { it.complexity.averageComplexity }.average()) else "0"}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card metric-card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Complex Methods</h5>
+                    <h2 class="text-warning">${analyses.sumOf { it.complexity.complexMethods.size }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
             <div class="card metric-card">
                 <div class="card-body text-center">
                     <h5 class="card-title">Excellent Classes</h5>
@@ -337,7 +573,7 @@ fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
             <div class="card metric-card">
                 <div class="card-body text-center">
                     <h5 class="card-title">Needs Attention</h5>
@@ -354,7 +590,11 @@ fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
                 LCOM Analysis
             </button>
         </li>
-        <!-- Future tabs will be added here -->
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="complexity-tab" data-bs-toggle="tab" data-bs-target="#complexity" type="button" role="tab">
+                Cyclomatic Complexity
+            </button>
+        </li>
     </ul>
     
     <!-- Tab Content -->
@@ -470,13 +710,12 @@ fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
                                                 <td>
                                                     ${analysis.suggestions.joinToString("<br>") { suggestion ->
                                                         val iconClass = when (suggestion.icon) {
-                                                            "✅" -> "text-success"
+                                                            "✅", "✨" -> "text-success"
                                                             "👍" -> "text-info"
-                                                            "⚠️" -> "text-warning"
-                                                            "❌" -> "text-danger"
-                                                            "🔧" -> "text-secondary"
-                                                            "📤" -> "text-primary"
-                                                            "🔀" -> "text-warning"
+                                                            "⚠️", "🔀", "⚡" -> "text-warning"
+                                                            "❌", "🚨" -> "text-danger"
+                                                            "🔧", "📏", "🧠", "📊" -> "text-secondary"
+                                                            "📤", "🎯" -> "text-primary"
                                                             else -> "text-muted"
                                                         }
                                                         """<span class="$iconClass suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="${suggestion.tooltip}">${suggestion.icon} ${suggestion.message}</span>"""
@@ -485,6 +724,128 @@ fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
                                             </tr>
                                             """
                                         }}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Cyclomatic Complexity Tab -->
+        <div class="tab-pane fade" id="complexity" role="tabpanel">
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Complexity Distribution</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="complexityChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Method Complexity vs Size</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="complexityScatterChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Method Details -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Method Complexity Details</h5>
+                        </div>
+                        <div class="card-body">
+                            <!-- Complexity Filter Buttons -->
+                            <div class="filter-buttons">
+                                <button class="btn btn-outline-primary filter-btn active" data-filter="all">
+                                    All Methods
+                                </button>
+                                <button class="btn btn-outline-success filter-btn" data-filter="simple">
+                                    Simple (1-5)
+                                </button>
+                                <button class="btn btn-outline-info filter-btn" data-filter="moderate">
+                                    Moderate (6-10)
+                                </button>
+                                <button class="btn btn-outline-warning filter-btn" data-filter="complex">
+                                    Complex (11-20)
+                                </button>
+                                <button class="btn btn-outline-danger filter-btn" data-filter="very-complex">
+                                    Very Complex (21+)
+                                </button>
+                            </div>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-striped" id="methodTable">
+                                    <thead>
+                                        <tr>
+                                            <th class="sortable" data-column="class">
+                                                Class <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="method">
+                                                Method <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="complexity">
+                                                CC <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="lines">
+                                                Lines <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="complexity-level">
+                                                Level <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th>Recommendations</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${analyses.flatMap { analysis ->
+                                            analysis.complexity.methods.map { method ->
+                                                val complexityLevel = when (method.cyclomaticComplexity) {
+                                                    1 -> "simple"
+                                                    in 2..5 -> "simple"
+                                                    in 6..10 -> "moderate"
+                                                    in 11..20 -> "complex"
+                                                    else -> "very-complex"
+                                                }
+                                                val levelBadge = when (method.cyclomaticComplexity) {
+                                                    1 -> "<span class='badge bg-success'>Simple</span>"
+                                                    in 2..5 -> "<span class='badge bg-success'>Simple</span>"
+                                                    in 6..10 -> "<span class='badge bg-info'>Moderate</span>"
+                                                    in 11..20 -> "<span class='badge bg-warning'>Complex</span>"
+                                                    else -> "<span class='badge bg-danger'>Very Complex</span>"
+                                                }
+                                                val recommendation = when (method.cyclomaticComplexity) {
+                                                    in 1..5 -> "✅ Good complexity"
+                                                    in 6..10 -> "⚠️ Consider simplifying"
+                                                    in 11..20 -> "🔧 Refactor recommended"
+                                                    else -> "🚨 Critical - needs immediate attention"
+                                                }
+                                                """
+                                                <tr class="table-row method-row" data-complexity-level="$complexityLevel" data-class="${analysis.className.lowercase()}" data-method="${method.methodName.lowercase()}" data-complexity="${method.cyclomaticComplexity}" data-lines="${method.lineCount}">
+                                                    <td><strong>${analysis.className}</strong></td>
+                                                    <td><code>${method.methodName}</code></td>
+                                                    <td><span class="badge bg-secondary">${method.cyclomaticComplexity}</span></td>
+                                                    <td>${method.lineCount}</td>
+                                                    <td>$levelBadge</td>
+                                                    <td>$recommendation</td>
+                                                </tr>
+                                                """
+                                            }
+                                        }.joinToString("")}
                                     </tbody>
                                 </table>
                             </div>
@@ -567,6 +928,98 @@ new Chart(cohesionCtx, {
             title: {
                 display: true,
                 text: 'Cohesion Quality Distribution'
+            }
+        }
+    }
+});
+
+// Complexity Distribution Chart
+const complexityData = ${complexityDistribution.let { dist ->
+    val labels = listOf("Simple (1)", "Low (2-5)", "Moderate (6-10)", "High (11-20)", "Very High (21+)")
+    val data = labels.map { dist[it]?.size ?: 0 }
+    val colors = listOf("#28a745", "#17a2b8", "#ffc107", "#fd7e14", "#dc3545")
+    "{ labels: [${labels.joinToString(",") { "'$it'" }}], data: [${data.joinToString(",")}], colors: [${colors.joinToString(",") { "'$it'" }}] }"
+}};
+
+const complexityCtx = document.getElementById('complexityChart').getContext('2d');
+new Chart(complexityCtx, {
+    type: 'bar',
+    data: {
+        labels: complexityData.labels,
+        datasets: [{
+            label: 'Number of Methods',
+            data: complexityData.data,
+            backgroundColor: complexityData.colors,
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Method Complexity Distribution'
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+
+// Complexity vs Size Scatter Chart
+const scatterData = [${analyses.flatMap { analysis ->
+    analysis.complexity.methods.map { method ->
+        "{x: ${method.lineCount}, y: ${method.cyclomaticComplexity}, label: '${method.methodName}'}"
+    }
+}.joinToString(",")}];
+
+const scatterCtx = document.getElementById('complexityScatterChart').getContext('2d');
+new Chart(scatterCtx, {
+    type: 'scatter',
+    data: {
+        datasets: [{
+            label: 'Methods',
+            data: scatterData,
+            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Method Complexity vs Lines of Code'
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return context.raw.label + ' (CC: ' + context.raw.y + ', Lines: ' + context.raw.x + ')';
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                title: {
+                    display: true,
+                    text: 'Lines of Code'
+                }
+            },
+            y: {
+                title: {
+                    display: true,
+                    text: 'Cyclomatic Complexity'
+                }
             }
         }
     }

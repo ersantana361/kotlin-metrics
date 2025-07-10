@@ -1,20 +1,33 @@
 # Kotlin Metrics Analyzer
 
-A command-line tool for analyzing Kotlin code metrics, specifically calculating LCOM (Lack of Cohesion of Methods) for Kotlin classes.
+A comprehensive command-line tool for analyzing Kotlin code quality with multiple metrics including LCOM (Lack of Cohesion of Methods) and Cyclomatic Complexity.
 
-## What is LCOM?
+## 📊 Supported Metrics
 
-LCOM (Lack of Cohesion of Methods) is a software metric that measures how well the methods of a class are related to each other through the instance variables they use. A lower LCOM value indicates better cohesion.
+### LCOM (Lack of Cohesion of Methods)
+Measures how well the methods of a class are related through shared properties:
+- **LCOM = 0**: High cohesion (excellent) - methods share properties effectively
+- **LCOM 1-2**: Good cohesion - minor improvements possible
+- **LCOM 3-5**: Moderate cohesion - consider refactoring
+- **LCOM > 5**: Poor cohesion - strong refactoring recommended
 
-- **LCOM = 0**: High cohesion (good) - methods share instance variables
-- **Higher LCOM**: Lower cohesion - methods are less related
+### Cyclomatic Complexity (CC)
+Measures code complexity based on decision points and control flow:
+- **CC 1-5**: Simple - easy to understand and test
+- **CC 6-10**: Moderate - acceptable complexity
+- **CC 11-20**: Complex - consider refactoring
+- **CC 21+**: Very complex - critical refactoring needed
 
-## Features
+## ✨ Features
 
-- Analyzes Kotlin source files using the Kotlin compiler's PSI
-- Calculates LCOM metrics for each class
-- Standalone executable JAR for easy distribution
-- Can be used across different projects
+- **Dual Analysis**: Both structural (LCOM) and complexity (CC) metrics
+- **Interactive HTML Reports**: Professional dashboards with charts and filtering
+- **Method-Level Analysis**: Detailed breakdown of each method's complexity
+- **Smart Suggestions**: Actionable recommendations with tooltips
+- **Terminal Summary**: Clean overview with quality distribution
+- **Sortable Tables**: Click-to-sort functionality with visual indicators
+- **Quality Filtering**: Filter by cohesion/complexity levels
+- **Standalone JAR**: No dependencies, works across projects
 
 ## Installation
 
@@ -42,20 +55,46 @@ source ~/.bashrc
 
 ### Basic Usage
 ```bash
-java -jar kotlin-metrics-all-1.0.0.jar MyClass.kt
+# Navigate to your Kotlin project root
+cd /path/to/your/kotlin/project
+
+# Run the analyzer
+kotlin-metrics
 ```
 
-### With Global Alias
-```bash
-kotlin-metrics src/main/kotlin/MyClass.kt
+### Example Terminal Output
 ```
+============================================================
+               📊 KOTLIN METRICS ANALYSIS SUMMARY
+                    Generated: 2024-01-15 14:30:22
+============================================================
 
-### Example Output
-```
-Class: UserService
-LCOM: 2
-Class: DataProcessor
-LCOM: 0
+📈 PROJECT OVERVIEW
+   Classes analyzed: 15
+   Total methods: 87
+   Total properties: 45
+
+🎯 KEY METRICS
+   Average LCOM: 3.20 ⚠️
+   Average Complexity: 6.80 👍
+
+📊 QUALITY DISTRIBUTION
+   ✅ Excellent: 4 classes (26.7%)
+   👍 Good: 6 classes (40.0%)
+   ⚠️ Moderate: 3 classes (20.0%)
+   ❌ Poor: 2 classes (13.3%)
+
+⚠️  ISSUES DETECTED
+   📊 2 classes have poor cohesion (LCOM > 5)
+   🧠 8 methods are complex (CC > 10)
+
+🎯 PRIORITY REFACTORING TARGETS
+   📝 UserService (LCOM:8 CC:12.5)
+   📝 DataProcessor (LCOM:6 CC:9.2)
+
+📄 Interactive report: kotlin-metrics-report.html
+   Open in browser for detailed analysis, charts, and suggestions
+============================================================
 ```
 
 ## Requirements
@@ -63,40 +102,73 @@ LCOM: 0
 - Java 17 or higher
 - Kotlin source files (.kt)
 
-## How It Works
+## 📊 HTML Report Features
 
-1. **Parsing**: Uses Kotlin compiler's PSI to parse source files
-2. **Analysis**: Extracts class properties and methods
-3. **Calculation**: For each method pair, checks if they share instance variables
-4. **LCOM Formula**: `LCOM = P - Q` where:
-   - P = number of method pairs with no shared variables
-   - Q = number of method pairs with shared variables
-   - If result < 0, LCOM = 0
+The generated HTML report provides comprehensive interactive analysis:
 
-## Example
+### 📈 Dashboard Overview
+- **Summary Cards**: Total classes, average metrics, quality indicators
+- **Visual Charts**: Distribution graphs and scatter plots
+- **Quality Breakdown**: Percentage distribution across quality levels
 
-Given a Kotlin class:
+### 🎯 LCOM Analysis Tab
+- **Cohesion Distribution**: Bar chart showing LCOM value spread
+- **Quality Pie Chart**: Visual breakdown of cohesion quality
+- **Class Details Table**: Sortable table with filtering by quality level
+- **Smart Suggestions**: Hover tooltips with actionable advice
+
+### 🧠 Cyclomatic Complexity Tab
+- **Complexity Distribution**: Method complexity histogram
+- **Complexity vs Size**: Scatter plot correlating CC with lines of code
+- **Method Details Table**: Every method with CC, lines, and recommendations
+- **Filter by Complexity**: Simple/Moderate/Complex/Very Complex
+
+### ⚡ Interactive Features
+- **Click-to-Sort**: Any column header to sort data
+- **Quality Filters**: Show only classes/methods of specific quality levels
+- **Responsive Design**: Works on desktop, tablet, and mobile
+- **Professional Styling**: Clean, modern interface with Bootstrap
+
+## 🔍 Analysis Details
+
+### LCOM Calculation
+```
+LCOM = P - Q (minimum 0)
+- P = method pairs with no shared properties
+- Q = method pairs with shared properties
+```
+
+### Cyclomatic Complexity Detection
+The tool analyzes these Kotlin constructs:
+- **Control Flow**: `if/else`, `when` expressions, loops
+- **Exception Handling**: `try/catch` blocks
+- **Logical Operators**: `&&`, `||`, `?:`
+- **Branching**: Each decision point adds +1 to complexity
+
+### Example Analysis
 ```kotlin
-class Example {
-    private val name: String = ""
-    private val age: Int = 0
+class PaymentProcessor {
+    private val config: Config = Config()
+    private val logger: Logger = Logger()
     
-    fun getName(): String = name
-    fun getAge(): Int = age
-    fun getInfo(): String = "$name is $age years old"
+    fun processPayment(amount: Double): Result {  // CC: 4
+        if (amount <= 0) return Error("Invalid amount")     // +1
+        
+        return when (config.paymentMethod) {                // +2 (2 branches)
+            "CARD" -> processCard(amount)
+            "BANK" -> processBank(amount)
+        } ?: Error("Unknown method")                        // +1
+    }
+    
+    private fun processCard(amount: Double): Result { ... } // CC: 1
+    private fun processBank(amount: Double): Result { ... } // CC: 1
 }
 ```
 
-- `getName()` uses `name`
-- `getAge()` uses `age`  
-- `getInfo()` uses both `name` and `age`
-
-Method pairs:
-- `getName()` & `getAge()`: no shared variables (P+1)
-- `getName()` & `getInfo()`: share `name` (Q+1)
-- `getAge()` & `getInfo()`: share `age` (Q+1)
-
-LCOM = 1 - 2 = -1 → 0 (clamped to 0)
+**Analysis Results:**
+- **LCOM**: 0 (all methods share `config` or `logger`)
+- **Average CC**: 2.0 (simple complexity)
+- **Quality**: ✅ Excellent
 
 ## License
 

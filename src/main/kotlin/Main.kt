@@ -21,7 +21,7 @@ data class ClassAnalysis(
     val methodCount: Int,
     val propertyCount: Int,
     val methodDetails: Map<String, Set<String>>,
-    val suggestions: List<String>
+    val suggestions: List<Suggestion>
 )
 
 data class ProjectReport(
@@ -125,35 +125,72 @@ fun analyzeClass(classOrObject: KtClassOrObject, fileName: String): ClassAnalysi
     )
 }
 
-fun generateSuggestions(lcom: Int, methodProps: Map<String, Set<String>>, props: List<String>): List<String> {
-    val suggestions = mutableListOf<String>()
+data class Suggestion(
+    val icon: String,
+    val message: String,
+    val tooltip: String
+)
+
+fun generateSuggestions(lcom: Int, methodProps: Map<String, Set<String>>, props: List<String>): List<Suggestion> {
+    val suggestions = mutableListOf<Suggestion>()
     
+    // Primary LCOM-based suggestion
     when {
-        lcom == 0 -> suggestions.add("✅ Excellent cohesion! Methods are well-related through shared properties.")
-        lcom in 1..2 -> suggestions.add("✅ Good cohesion. Minor improvements possible.")
-        lcom in 3..5 -> {
-            suggestions.add("⚠️ Moderate cohesion. Consider refactoring.")
-            suggestions.add("💡 Look for methods that don't share properties and consider splitting into separate classes.")
-        }
-        lcom > 5 -> {
-            suggestions.add("❌ Poor cohesion. Strong refactoring recommended.")
-            suggestions.add("💡 This class likely has multiple responsibilities. Consider applying Single Responsibility Principle.")
-            suggestions.add("💡 Group related methods and properties into separate classes.")
-        }
+        lcom == 0 -> suggestions.add(Suggestion(
+            "✅", 
+            "Excellent cohesion",
+            "All methods share properties effectively. This indicates a well-designed class with strong internal cohesion."
+        ))
+        lcom in 1..2 -> suggestions.add(Suggestion(
+            "👍", 
+            "Good cohesion",
+            "Minor improvements possible. Look for opportunities to increase property sharing between methods."
+        ))
+        lcom in 3..5 -> suggestions.add(Suggestion(
+            "⚠️", 
+            "Moderate cohesion - consider refactoring",
+            "Some methods don't share properties. Group related functionality or split into focused classes."
+        ))
+        lcom > 5 -> suggestions.add(Suggestion(
+            "❌", 
+            "Poor cohesion - refactoring needed",
+            "High LCOM indicates multiple responsibilities. Apply Single Responsibility Principle by extracting related methods into separate classes."
+        ))
     }
     
-    // Additional suggestions based on analysis
+    // Specific actionable suggestions
     val unusedProps = props.filter { prop -> 
         methodProps.values.none { it.contains(prop) } 
     }
     
     if (unusedProps.isNotEmpty()) {
-        suggestions.add("💡 Unused properties detected: ${unusedProps.joinToString(", ")}. Consider removing or using them.")
+        suggestions.add(Suggestion(
+            "🔧",
+            "${unusedProps.size} unused ${if (unusedProps.size == 1) "property" else "properties"}",
+            "Unused: ${unusedProps.joinToString(", ")}. Remove dead code or integrate these properties into class functionality."
+        ))
     }
     
     val methodsWithoutProps = methodProps.filter { it.value.isEmpty() }
     if (methodsWithoutProps.isNotEmpty()) {
-        suggestions.add("💡 Methods not using any properties: ${methodsWithoutProps.keys.joinToString(", ")}. Consider if they belong in this class.")
+        val methodCount = methodsWithoutProps.size
+        val methodList = methodsWithoutProps.keys.take(3).joinToString(", ") + 
+                        if (methodCount > 3) " +${methodCount - 3} more" else ""
+        
+        suggestions.add(Suggestion(
+            "📤",
+            "$methodCount ${if (methodCount == 1) "method doesn't" else "methods don't"} use properties",
+            "Methods: $methodList. Consider moving to utility classes or making them static/extension functions."
+        ))
+    }
+    
+    // Additional pattern-based suggestions
+    if (lcom > 3 && methodProps.size > 8) {
+        suggestions.add(Suggestion(
+            "🔀",
+            "Large class with poor cohesion",
+            "Consider splitting into ${if (lcom > 6) "3-4" else "2-3"} smaller, focused classes based on method-property relationships."
+        ))
     }
     
     return suggestions
@@ -237,6 +274,17 @@ fun generateHtmlHeader(): String = """
         .cohesion-moderate { border-left: 4px solid #ffc107; }
         .cohesion-poor { border-left: 4px solid #dc3545; }
         .chart-container { height: 400px; }
+        .sortable { cursor: pointer; user-select: none; }
+        .sortable:hover { background-color: #f8f9fa; }
+        .sort-indicator { margin-left: 5px; opacity: 0.5; }
+        .sort-indicator.active { opacity: 1; }
+        .filter-buttons { margin-bottom: 20px; }
+        .filter-btn { margin-right: 10px; }
+        .filter-btn.active { box-shadow: 0 0 0 2px rgba(0,123,255,.5); }
+        .table-row { transition: opacity 0.3s; }
+        .table-row.filtered { display: none; }
+        .suggestion-item { cursor: help; }
+        .suggestion-item:hover { opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -347,16 +395,47 @@ fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
                             <h5>Class Details</h5>
                         </div>
                         <div class="card-body">
+                            <!-- Filter Buttons -->
+                            <div class="filter-buttons">
+                                <button class="btn btn-outline-primary filter-btn active" data-filter="all">
+                                    All Classes
+                                </button>
+                                <button class="btn btn-outline-success filter-btn" data-filter="excellent">
+                                    ✅ Excellent
+                                </button>
+                                <button class="btn btn-outline-info filter-btn" data-filter="good">
+                                    👍 Good
+                                </button>
+                                <button class="btn btn-outline-warning filter-btn" data-filter="moderate">
+                                    ⚠️ Moderate
+                                </button>
+                                <button class="btn btn-outline-danger filter-btn" data-filter="poor">
+                                    ❌ Poor
+                                </button>
+                            </div>
+                            
                             <div class="table-responsive">
-                                <table class="table table-striped">
+                                <table class="table table-striped" id="classTable">
                                     <thead>
                                         <tr>
-                                            <th>Class</th>
-                                            <th>File</th>
-                                            <th>LCOM</th>
-                                            <th>Methods</th>
-                                            <th>Properties</th>
-                                            <th>Quality</th>
+                                            <th class="sortable" data-column="class">
+                                                Class <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="file">
+                                                File <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="lcom">
+                                                LCOM <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="methods">
+                                                Methods <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="properties">
+                                                Properties <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="quality">
+                                                Quality <span class="sort-indicator">↕️</span>
+                                            </th>
                                             <th>Suggestions</th>
                                         </tr>
                                     </thead>
@@ -374,8 +453,14 @@ fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
                                                 in 3..5 -> "<span class='badge bg-warning'>Moderate</span>"
                                                 else -> "<span class='badge bg-danger'>Poor</span>"
                                             }
+                                            val qualityFilter = when (analysis.lcom) {
+                                                0 -> "excellent"
+                                                in 1..2 -> "good"
+                                                in 3..5 -> "moderate"
+                                                else -> "poor"
+                                            }
                                             """
-                                            <tr class="$qualityClass">
+                                            <tr class="table-row $qualityClass" data-quality="$qualityFilter" data-class="${analysis.className.lowercase()}" data-file="${analysis.fileName.lowercase()}" data-lcom="${analysis.lcom}" data-methods="${analysis.methodCount}" data-properties="${analysis.propertyCount}">
                                                 <td><strong>${analysis.className}</strong></td>
                                                 <td><code>${analysis.fileName}</code></td>
                                                 <td><span class="badge bg-secondary">${analysis.lcom}</span></td>
@@ -383,11 +468,18 @@ fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
                                                 <td>${analysis.propertyCount}</td>
                                                 <td>$quality</td>
                                                 <td>
-                                                    ${analysis.suggestions.joinToString("<br>") { 
-                                                        it.replace("✅", "<span class='text-success'>✅</span>")
-                                                         .replace("⚠️", "<span class='text-warning'>⚠️</span>")
-                                                         .replace("❌", "<span class='text-danger'>❌</span>")
-                                                         .replace("💡", "<span class='text-info'>💡</span>")
+                                                    ${analysis.suggestions.joinToString("<br>") { suggestion ->
+                                                        val iconClass = when (suggestion.icon) {
+                                                            "✅" -> "text-success"
+                                                            "👍" -> "text-info"
+                                                            "⚠️" -> "text-warning"
+                                                            "❌" -> "text-danger"
+                                                            "🔧" -> "text-secondary"
+                                                            "📤" -> "text-primary"
+                                                            "🔀" -> "text-warning"
+                                                            else -> "text-muted"
+                                                        }
+                                                        """<span class="$iconClass suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="${suggestion.tooltip}">${suggestion.icon} ${suggestion.message}</span>"""
                                                     }}
                                                 </td>
                                             </tr>
@@ -478,6 +570,117 @@ new Chart(cohesionCtx, {
             }
         }
     }
+});
+
+// Table sorting and filtering functionality
+let sortDirection = {};
+let currentFilter = 'all';
+
+// Filter functionality
+document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        // Update active filter button
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        currentFilter = this.dataset.filter;
+        filterTable();
+    });
+});
+
+function filterTable() {
+    const rows = document.querySelectorAll('#classTable tbody tr');
+    rows.forEach(row => {
+        const quality = row.dataset.quality;
+        if (currentFilter === 'all' || quality === currentFilter) {
+            row.classList.remove('filtered');
+        } else {
+            row.classList.add('filtered');
+        }
+    });
+}
+
+// Sort functionality
+document.querySelectorAll('.sortable').forEach(th => {
+    th.addEventListener('click', function() {
+        const column = this.dataset.column;
+        const currentDirection = sortDirection[column] || 'asc';
+        const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+        
+        // Update sort direction
+        sortDirection[column] = newDirection;
+        
+        // Update sort indicators
+        document.querySelectorAll('.sort-indicator').forEach(indicator => {
+            indicator.classList.remove('active');
+            indicator.textContent = '↕️';
+        });
+        
+        const indicator = this.querySelector('.sort-indicator');
+        indicator.classList.add('active');
+        indicator.textContent = newDirection === 'asc' ? '↑' : '↓';
+        
+        sortTable(column, newDirection);
+    });
+});
+
+function sortTable(column, direction) {
+    const tbody = document.querySelector('#classTable tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    rows.sort((a, b) => {
+        let aVal, bVal;
+        
+        switch(column) {
+            case 'class':
+                aVal = a.dataset.class;
+                bVal = b.dataset.class;
+                break;
+            case 'file':
+                aVal = a.dataset.file;
+                bVal = b.dataset.file;
+                break;
+            case 'lcom':
+                aVal = parseInt(a.dataset.lcom);
+                bVal = parseInt(b.dataset.lcom);
+                break;
+            case 'methods':
+                aVal = parseInt(a.dataset.methods);
+                bVal = parseInt(b.dataset.methods);
+                break;
+            case 'properties':
+                aVal = parseInt(a.dataset.properties);
+                bVal = parseInt(b.dataset.properties);
+                break;
+            case 'quality':
+                const qualityOrder = {'excellent': 0, 'good': 1, 'moderate': 2, 'poor': 3};
+                aVal = qualityOrder[a.dataset.quality];
+                bVal = qualityOrder[b.dataset.quality];
+                break;
+            default:
+                return 0;
+        }
+        
+        if (typeof aVal === 'string') {
+            return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        } else {
+            return direction === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+    });
+    
+    // Re-append sorted rows
+    rows.forEach(row => tbody.appendChild(row));
+    
+    // Re-apply filter after sorting
+    filterTable();
+}
+
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 });
 </script>
 """

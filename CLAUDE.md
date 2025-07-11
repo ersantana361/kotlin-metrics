@@ -1,13 +1,15 @@
 # Kotlin Metrics Project
 
 ## Project Overview
-A comprehensive Kotlin code quality analyzer that provides multiple metrics including LCOM (Lack of Cohesion of Methods) and Cyclomatic Complexity. The tool generates both terminal summaries and interactive HTML reports for detailed analysis.
+A comprehensive Kotlin code quality analyzer that provides multiple metrics including LCOM (Lack of Cohesion of Methods), Cyclomatic Complexity, and **Architecture Analysis**. The tool generates both terminal summaries and interactive HTML reports with detailed analysis, DDD pattern detection, and architectural visualization.
 
 ## Architecture Overview
 
 ### Core Components
 - **PSI Analysis Engine**: Uses Kotlin compiler's AST for deep code analysis
 - **Metrics Calculators**: Separate calculators for LCOM and Cyclomatic Complexity
+- **Architecture Analyzer**: DDD pattern detection and layered architecture analysis
+- **Dependency Graph Builder**: Maps class relationships and detects cycles
 - **Report Generation**: Dual output system (terminal + HTML)
 - **Interactive Frontend**: Bootstrap-based dashboard with Chart.js visualizations
 
@@ -21,6 +23,13 @@ A comprehensive Kotlin code quality analyzer that provides multiple metrics incl
    - AST-based analysis of control flow complexity
    - Detects: if/else, when, loops, try/catch, logical operators
    - Method-level granularity with aggregation to class level
+
+3. **Architecture Analysis**
+   - **DDD Pattern Detection**: Identifies Entities, Value Objects, Services, Repositories, Aggregates, and Domain Events
+   - **Layered Architecture**: Analyzes presentation, application, domain, data, and infrastructure layers
+   - **Dependency Graph**: Maps class relationships and detects circular dependencies
+   - **Architecture Patterns**: Detects Layered, Hexagonal, Clean, and Onion architectures
+   - **Violation Detection**: Identifies layer violations and architectural anti-patterns
 
 ## Build System
 - **Build Tool**: Gradle 8.5 with Kotlin DSL
@@ -63,6 +72,38 @@ data class ClassAnalysis(
 )
 ```
 
+### Architecture Analysis Types
+```kotlin
+data class ArchitectureAnalysis(
+    val dddPatterns: DddPatternAnalysis,
+    val layeredArchitecture: LayeredArchitectureAnalysis,
+    val dependencyGraph: DependencyGraph
+)
+
+data class DddPatternAnalysis(
+    val entities: List<DddEntity>,
+    val valueObjects: List<DddValueObject>,
+    val services: List<DddService>,
+    val repositories: List<DddRepository>,
+    val aggregates: List<DddAggregate>,
+    val domainEvents: List<DddDomainEvent>
+)
+
+data class LayeredArchitectureAnalysis(
+    val layers: List<ArchitectureLayer>,
+    val dependencies: List<LayerDependency>,
+    val violations: List<ArchitectureViolation>,
+    val pattern: ArchitecturePattern // LAYERED, HEXAGONAL, CLEAN, ONION
+)
+
+data class DependencyGraph(
+    val nodes: List<DependencyNode>,
+    val edges: List<DependencyEdge>,
+    val cycles: List<DependencyCycle>,
+    val packages: List<PackageAnalysis>
+)
+```
+
 ## HTML Report Architecture
 
 ### Frontend Stack
@@ -71,11 +112,13 @@ data class ClassAnalysis(
 - **Vanilla JavaScript**: Table sorting, filtering, and tooltips
 
 ### Report Features
-- **Tabbed Interface**: LCOM and Complexity analysis in separate tabs
+- **Tabbed Interface**: LCOM, Complexity, and Architecture analysis in separate tabs
 - **Interactive Charts**: Bar charts, doughnut charts, scatter plots
+- **Architecture Visualization**: Layer diagrams, DDD pattern distribution, dependency graphs
 - **Sortable Tables**: Click-to-sort with visual indicators
 - **Quality Filtering**: Filter by cohesion/complexity levels
 - **Smart Tooltips**: Contextual help and detailed explanations
+- **Violation Reports**: Detailed architecture violation analysis with suggestions
 
 ## Analysis Algorithms
 
@@ -113,6 +156,73 @@ method.bodyExpression?.accept(object : KtTreeVisitorVoid() {
 })
 ```
 
+### DDD Pattern Detection Algorithms
+
+**Entity Detection:**
+```kotlin
+fun analyzeEntity(classOrObject: KtClassOrObject): DddEntity {
+    var confidence = 0.0
+    
+    // Check for ID fields
+    if (hasIdFields(classOrObject)) confidence += 0.3
+    
+    // Check for mutability
+    if (hasMutableProperties(classOrObject)) confidence += 0.2
+    
+    // Check for equals/hashCode
+    if (hasEqualsHashCode(classOrObject)) confidence += 0.3
+    
+    // Check naming patterns
+    if (className.endsWith("Entity")) confidence += 0.2
+    
+    return DddEntity(confidence = confidence)
+}
+```
+
+**Layer Detection:**
+```kotlin
+fun inferLayer(packageName: String, className: String): String? {
+    return when {
+        packageName.contains("controller") || packageName.contains("api") -> "presentation"
+        packageName.contains("service") || packageName.contains("application") -> "application"
+        packageName.contains("domain") || packageName.contains("model") -> "domain"
+        packageName.contains("repository") || packageName.contains("data") -> "data"
+        className.endsWith("Controller") -> "presentation"
+        className.endsWith("Service") -> "application"
+        className.endsWith("Repository") -> "data"
+        else -> null
+    }
+}
+```
+
+### Dependency Graph Construction
+```kotlin
+fun buildDependencyGraph(ktFiles: List<KtFile>): DependencyGraph {
+    val nodes = mutableListOf<DependencyNode>()
+    val edges = mutableListOf<DependencyEdge>()
+    
+    // Build nodes from class declarations
+    for (ktFile in ktFiles) {
+        for (classOrObject in ktFile.declarations.filterIsInstance<KtClassOrObject>()) {
+            nodes.add(DependencyNode(
+                id = "${ktFile.packageFqName}.${classOrObject.name}",
+                className = classOrObject.name,
+                nodeType = determineNodeType(classOrObject),
+                layer = inferLayer(ktFile.packageFqName.asString(), classOrObject.name)
+            ))
+        }
+    }
+    
+    // Build edges from references
+    analyzeReferences(ktFiles, nodes, edges)
+    
+    // Detect cycles
+    val cycles = detectCycles(nodes, edges)
+    
+    return DependencyGraph(nodes, edges, cycles, packageAnalyses)
+}
+```
+
 ## Usage
 ```bash
 # Build
@@ -144,6 +254,9 @@ alias kotlin-metrics="java -jar /path/to/kotlin-metrics-all-1.0.0.jar"
 - **Output Formats**: JSON/XML export for CI/CD integration
 - **Threshold Configuration**: Configurable quality thresholds
 - **Historical Tracking**: Compare metrics over time
+- **Enhanced Visualization**: D3.js for interactive dependency graphs
+- **Custom Architecture Rules**: User-defined layer validation rules
+- **Microservices Analysis**: Multi-service architecture patterns
 
 ## Testing Strategy
 - Manual testing on real Kotlin projects

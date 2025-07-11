@@ -1,6 +1,6 @@
 # Kotlin Metrics Analyzer
 
-A comprehensive command-line tool for analyzing Kotlin code quality with multiple metrics including LCOM (Lack of Cohesion of Methods) and Cyclomatic Complexity.
+A comprehensive command-line tool for analyzing Kotlin code quality with multiple metrics including LCOM (Lack of Cohesion of Methods), Cyclomatic Complexity, and **Architecture Analysis** with DDD pattern detection.
 
 ## 📊 Supported Metrics
 
@@ -18,15 +18,25 @@ Measures code complexity based on decision points and control flow:
 - **CC 11-20**: Complex - consider refactoring
 - **CC 21+**: Very complex - critical refactoring needed
 
+### Architecture Analysis
+Comprehensive analysis of software architecture patterns and design quality:
+- **DDD Pattern Detection**: Identifies Entities, Value Objects, Services, Repositories, Aggregates, and Domain Events
+- **Layered Architecture**: Analyzes presentation, application, domain, data, and infrastructure layers
+- **Dependency Graph**: Maps class relationships and detects circular dependencies
+- **Architecture Patterns**: Detects Layered, Hexagonal, Clean, and Onion architectures
+- **Violation Detection**: Identifies layer violations and architectural anti-patterns
+
 ## ✨ Features
 
-- **Dual Analysis**: Both structural (LCOM) and complexity (CC) metrics
+- **Triple Analysis**: Structural (LCOM), complexity (CC), and architecture metrics
 - **Interactive HTML Reports**: Professional dashboards with charts and filtering
+- **Architecture Visualization**: Layer diagrams, DDD patterns, and dependency graphs
 - **Method-Level Analysis**: Detailed breakdown of each method's complexity
 - **Smart Suggestions**: Actionable recommendations with tooltips
-- **Terminal Summary**: Clean overview with quality distribution
+- **Terminal Summary**: Clean overview with quality distribution and architecture patterns
 - **Sortable Tables**: Click-to-sort functionality with visual indicators
 - **Quality Filtering**: Filter by cohesion/complexity levels
+- **Violation Detection**: Identifies architecture violations with suggested fixes
 - **Standalone JAR**: No dependencies, works across projects
 
 ## Installation
@@ -92,8 +102,27 @@ kotlin-metrics
    📝 UserService (LCOM:8 CC:12.5)
    📝 DataProcessor (LCOM:6 CC:9.2)
 
+🏗️ ARCHITECTURE ANALYSIS
+   Pattern: LAYERED
+   Layers: 4
+   Dependencies: 12
+   Violations: 2
+
+📐 DDD PATTERNS DETECTED
+   Entities: 8
+   Value Objects: 5
+   Services: 12
+   Repositories: 4
+   Aggregates: 3
+
+🌐 DEPENDENCY GRAPH
+   Nodes: 45
+   Edges: 67
+   Cycles: 1
+   Packages: 8
+
 📄 Interactive report: kotlin-metrics-report.html
-   Open in browser for detailed analysis, charts, and suggestions
+   Open in browser for detailed analysis, charts, and architecture visualization
 ============================================================
 ```
 
@@ -123,6 +152,14 @@ The generated HTML report provides comprehensive interactive analysis:
 - **Method Details Table**: Every method with CC, lines, and recommendations
 - **Filter by Complexity**: Simple/Moderate/Complex/Very Complex
 
+### 🏗️ Architecture Analysis Tab
+- **Architecture Pattern Detection**: Identifies Layered, Hexagonal, Clean, and Onion patterns
+- **Layer Visualization**: Bar charts showing classes per architectural layer
+- **DDD Patterns Chart**: Distribution of Domain-Driven Design patterns
+- **Dependency Graph**: Interactive visualization of class relationships
+- **Violation Reports**: Detailed tables of architecture violations with suggestions
+- **Pattern Details**: Confidence scores for detected entities, services, and repositories
+
 ### ⚡ Interactive Features
 - **Click-to-Sort**: Any column header to sort data
 - **Quality Filters**: Show only classes/methods of specific quality levels
@@ -147,28 +184,41 @@ The tool analyzes these Kotlin constructs:
 
 ### Example Analysis
 ```kotlin
-class PaymentProcessor {
-    private val config: Config = Config()
-    private val logger: Logger = Logger()
+// Domain Service with Payment Processing
+class PaymentService {                                  // DDD: Service (80%)
+    private val paymentRepository: PaymentRepository    // DDD: Repository
+    private val logger: Logger
     
-    fun processPayment(amount: Double): Result {  // CC: 4
-        if (amount <= 0) return Error("Invalid amount")     // +1
+    fun processPayment(request: PaymentRequest): Result { // CC: 4
+        if (request.amount <= 0) return Error("Invalid")   // +1
         
-        return when (config.paymentMethod) {                // +2 (2 branches)
-            "CARD" -> processCard(amount)
-            "BANK" -> processBank(amount)
+        val payment = Payment(                              // DDD: Entity
+            id = UUID.randomUUID(),
+            amount = Money(request.amount, request.currency), // DDD: Value Object
+            status = PaymentStatus.PENDING
+        )
+        
+        return when (request.method) {                      // +2 (2 branches)
+            PaymentMethod.CARD -> processCard(payment)
+            PaymentMethod.BANK -> processBank(payment)
         } ?: Error("Unknown method")                        // +1
     }
     
-    private fun processCard(amount: Double): Result { ... } // CC: 1
-    private fun processBank(amount: Double): Result { ... } // CC: 1
+    private fun processCard(payment: Payment): Result { ... } // CC: 1
+    private fun processBank(payment: Payment): Result { ... } // CC: 1
 }
+
+data class Money(val amount: BigDecimal, val currency: String) // DDD: Value Object (90%)
+data class Payment(val id: UUID, val amount: Money, val status: PaymentStatus) // DDD: Entity (85%)
 ```
 
 **Analysis Results:**
-- **LCOM**: 0 (all methods share `config` or `logger`)
+- **LCOM**: 0 (all methods share dependencies)
 - **Average CC**: 2.0 (simple complexity)
 - **Quality**: ✅ Excellent
+- **Architecture**: Service layer with proper DDD patterns
+- **DDD Patterns**: 1 Service, 1 Entity, 1 Value Object, 1 Repository
+- **Layer**: Application layer (service package)
 
 ## License
 

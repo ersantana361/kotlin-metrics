@@ -14,6 +14,13 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:1.9.22")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
     implementation("org.jetbrains.kotlin:kotlin-reflect:1.9.22")
+    
+    // Test dependencies
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:1.9.22")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.10.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:5.10.0")
+    testImplementation("io.mockk:mockk:1.13.8")
 }
 
 application {
@@ -38,4 +45,8 @@ tasks.register<Jar>("fatJar") {
             .filter { it.name.endsWith("jar") }
             .map { zipTree(it) }
     })
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

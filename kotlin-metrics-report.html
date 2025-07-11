@@ -1,0 +1,1273 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kotlin Metrics Report</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f8f9fa; }
+        .metric-card { transition: transform 0.2s; }
+        .metric-card:hover { transform: translateY(-2px); }
+        .cohesion-excellent { border-left: 4px solid #28a745; }
+        .cohesion-good { border-left: 4px solid #17a2b8; }
+        .cohesion-moderate { border-left: 4px solid #ffc107; }
+        .cohesion-poor { border-left: 4px solid #dc3545; }
+        .chart-container { height: 400px; }
+        .sortable { cursor: pointer; user-select: none; }
+        .sortable:hover { background-color: #f8f9fa; }
+        .sort-indicator { margin-left: 5px; opacity: 0.5; }
+        .sort-indicator.active { opacity: 1; }
+        .filter-buttons { margin-bottom: 20px; }
+        .filter-btn { margin-right: 10px; }
+        .filter-btn.active { box-shadow: 0 0 0 2px rgba(0,123,255,.5); }
+        .table-row { transition: opacity 0.3s; }
+        .table-row.filtered { display: none; }
+        .suggestion-item { cursor: help; }
+        .suggestion-item:hover { opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="text-center mb-4">
+                <i class="fas fa-chart-line"></i> Kotlin Metrics Analysis Report
+            </h1>
+            <p class="text-center text-muted">Generated: 2025-07-10 22:05:01</p>
+        </div>
+    </div>
+    
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card metric-card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Total Classes</h5>
+                    <h2 class="text-primary">28</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card metric-card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Average LCOM</h5>
+                    <h2 class="text-info">0,00</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card metric-card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Average CC</h5>
+                    <h2 class="text-info">0,0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card metric-card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Complex Methods</h5>
+                    <h2 class="text-warning">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card metric-card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Excellent Classes</h5>
+                    <h2 class="text-success">28</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card metric-card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Needs Attention</h5>
+                    <h2 class="text-danger">0</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tabs Navigation -->
+    <ul class="nav nav-tabs" id="metricsTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="lcom-tab" data-bs-toggle="tab" data-bs-target="#lcom" type="button" role="tab">
+                LCOM Analysis
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="complexity-tab" data-bs-toggle="tab" data-bs-target="#complexity" type="button" role="tab">
+                Cyclomatic Complexity
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="architecture-tab" data-bs-toggle="tab" data-bs-target="#architecture" type="button" role="tab">
+                Architecture
+            </button>
+        </li>
+    </ul>
+    
+    <!-- Tab Content -->
+    <div class="tab-content" id="metricsTabContent">
+        <div class="tab-pane fade show active" id="lcom" role="tabpanel">
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>LCOM Distribution</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="lcomChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Cohesion Quality</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="cohesionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Class Details -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Class Details</h5>
+                        </div>
+                        <div class="card-body">
+                            <!-- Filter Buttons -->
+                            <div class="filter-buttons">
+                                <button class="btn btn-outline-primary filter-btn active" data-filter="all">
+                                    All Classes
+                                </button>
+                                <button class="btn btn-outline-success filter-btn" data-filter="excellent">
+                                    ✅ Excellent
+                                </button>
+                                <button class="btn btn-outline-info filter-btn" data-filter="good">
+                                    👍 Good
+                                </button>
+                                <button class="btn btn-outline-warning filter-btn" data-filter="moderate">
+                                    ⚠️ Moderate
+                                </button>
+                                <button class="btn btn-outline-danger filter-btn" data-filter="poor">
+                                    ❌ Poor
+                                </button>
+                            </div>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-striped" id="classTable">
+                                    <thead>
+                                        <tr>
+                                            <th class="sortable" data-column="class">
+                                                Class <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="file">
+                                                File <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="lcom">
+                                                LCOM <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="methods">
+                                                Methods <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="properties">
+                                                Properties <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="quality">
+                                                Quality <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th>Suggestions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="methodcomplexity" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>MethodComplexity</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="complexityanalysis" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>ComplexityAnalysis</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="classanalysis" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>ClassAnalysis</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="projectreport" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>ProjectReport</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="architectureanalysis" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>ArchitectureAnalysis</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="dddpatternanalysis" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>DddPatternAnalysis</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="dddentity" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>DddEntity</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="dddvalueobject" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>DddValueObject</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="dddservice" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>DddService</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="dddrepository" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>DddRepository</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="dddaggregate" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>DddAggregate</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="ddddomainevent" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>DddDomainEvent</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="layeredarchitectureanalysis" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>LayeredArchitectureAnalysis</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="architecturelayer" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>ArchitectureLayer</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="layerdependency" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>LayerDependency</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="architectureviolation" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>ArchitectureViolation</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="dependencygraph" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>DependencyGraph</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="dependencynode" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>DependencyNode</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="dependencyedge" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>DependencyEdge</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="dependencycycle" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>DependencyCycle</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="packageanalysis" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>PackageAnalysis</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="layertype" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>LayerType</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="architecturepattern" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>ArchitecturePattern</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="violationtype" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>ViolationType</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="nodetype" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>NodeType</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="dependencytype" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>DependencyType</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="cycleseverity" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>CycleSeverity</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="table-row cohesion-excellent" data-quality="excellent" data-class="suggestion" data-file="main.kt" data-lcom="0" data-methods="0" data-properties="0">
+                                                <td><strong>Suggestion</strong></td>
+                                                <td><code>Main.kt</code></td>
+                                                <td><span class="badge bg-secondary">0</span></td>
+                                                <td>0</td>
+                                                <td>0</td>
+                                                <td><span class='badge bg-success'>Excellent</span></td>
+                                                <td>
+                                                    <span class="text-success suggestion-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Good cohesion and low complexity. Consider this class as a model for others.">✨ Well-designed class</span>
+                                                </td>
+                                            </tr>
+                                            
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Cyclomatic Complexity Tab -->
+        <div class="tab-pane fade" id="complexity" role="tabpanel">
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Complexity Distribution</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="complexityChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Method Complexity vs Size</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="complexityScatterChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Method Details -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Method Complexity Details</h5>
+                        </div>
+                        <div class="card-body">
+                            <!-- Complexity Filter Buttons -->
+                            <div class="filter-buttons">
+                                <button class="btn btn-outline-primary filter-btn active" data-filter="all">
+                                    All Methods
+                                </button>
+                                <button class="btn btn-outline-success filter-btn" data-filter="simple">
+                                    Simple (1-5)
+                                </button>
+                                <button class="btn btn-outline-info filter-btn" data-filter="moderate">
+                                    Moderate (6-10)
+                                </button>
+                                <button class="btn btn-outline-warning filter-btn" data-filter="complex">
+                                    Complex (11-20)
+                                </button>
+                                <button class="btn btn-outline-danger filter-btn" data-filter="very-complex">
+                                    Very Complex (21+)
+                                </button>
+                            </div>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-striped" id="methodTable">
+                                    <thead>
+                                        <tr>
+                                            <th class="sortable" data-column="class">
+                                                Class <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="method">
+                                                Method <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="complexity">
+                                                CC <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="lines">
+                                                Lines <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th class="sortable" data-column="complexity-level">
+                                                Level <span class="sort-indicator">↕️</span>
+                                            </th>
+                                            <th>Recommendations</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Architecture Analysis Tab -->
+        <div class="tab-pane fade" id="architecture" role="tabpanel">
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Architecture Pattern: LAYERED</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="layerChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>DDD Patterns Distribution</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="dddChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dependency Graph Visualization -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Dependency Graph</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="dependencyGraph" style="height: 500px; border: 1px solid #ddd;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Architecture Violations -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Architecture Violations</h5>
+                        </div>
+                        <div class="card-body">
+                            
+                                <div class="alert alert-success">
+                                    <i class="fas fa-check-circle"></i> No architecture violations detected!
+                                </div>
+                                
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- DDD Patterns Details -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Detected Entities</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class='text-muted'>No entities detected</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Detected Services</h5>
+                        </div>
+                        <div class="card-body">
+                            
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Class</th>
+                                                <th>Stateless</th>
+                                                <th>Domain Logic</th>
+                                                <th>Confidence</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            
+                                                <tr>
+                                                    <td><strong>MethodComplexity</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>ComplexityAnalysis</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>ClassAnalysis</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>ProjectReport</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>ArchitectureAnalysis</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>DddPatternAnalysis</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>DddEntity</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>DddValueObject</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>DddService</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-success">80%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>DddRepository</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>DddAggregate</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>DddDomainEvent</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>LayeredArchitectureAnalysis</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>ArchitectureLayer</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>LayerDependency</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>ArchitectureViolation</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>DependencyGraph</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>DependencyNode</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>DependencyEdge</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>DependencyCycle</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>PackageAnalysis</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <tr>
+                                                    <td><strong>Suggestion</strong></td>
+                                                    <td>✅</td>
+                                                    <td>❌</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">50%</span>
+                                                    </td>
+                                                </tr>
+                                                
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Architecture Layer Chart
+const layerData = { labels: ['unknown','application','data'], data: [26,1,1], colors: ['#FF6384','#36A2EB','#FFCE56'] };
+
+const layerCtx = document.getElementById('layerChart').getContext('2d');
+new Chart(layerCtx, {
+    type: 'bar',
+    data: {
+        labels: layerData.labels,
+        datasets: [{
+            label: 'Classes per Layer',
+            data: layerData.data,
+            backgroundColor: layerData.colors,
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Architecture Layers'
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+
+// DDD Patterns Chart
+const dddData = { labels: ['Entities','Value Objects','Services','Repositories','Aggregates','Domain Events'], data: [0,1,22,1,0,1], colors: ['#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF','#FF9F40'] };
+
+const dddCtx = document.getElementById('dddChart').getContext('2d');
+new Chart(dddCtx, {
+    type: 'doughnut',
+    data: {
+        labels: dddData.labels,
+        datasets: [{
+            data: dddData.data,
+            backgroundColor: dddData.colors,
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            title: {
+                display: true,
+                text: 'DDD Patterns Distribution'
+            }
+        }
+    }
+});
+
+// Simple Dependency Graph Visualization
+const dependencyGraphContainer = document.getElementById('dependencyGraph');
+const nodes = [{ id: '.MethodComplexity', label: 'MethodComplexity', layer: 'unknown' },{ id: '.ComplexityAnalysis', label: 'ComplexityAnalysis', layer: 'unknown' },{ id: '.ClassAnalysis', label: 'ClassAnalysis', layer: 'unknown' },{ id: '.ProjectReport', label: 'ProjectReport', layer: 'unknown' },{ id: '.ArchitectureAnalysis', label: 'ArchitectureAnalysis', layer: 'unknown' },{ id: '.DddPatternAnalysis', label: 'DddPatternAnalysis', layer: 'unknown' },{ id: '.DddEntity', label: 'DddEntity', layer: 'unknown' },{ id: '.DddValueObject', label: 'DddValueObject', layer: 'unknown' },{ id: '.DddService', label: 'DddService', layer: 'application' },{ id: '.DddRepository', label: 'DddRepository', layer: 'data' },{ id: '.DddAggregate', label: 'DddAggregate', layer: 'unknown' },{ id: '.DddDomainEvent', label: 'DddDomainEvent', layer: 'unknown' },{ id: '.LayeredArchitectureAnalysis', label: 'LayeredArchitectureAnalysis', layer: 'unknown' },{ id: '.ArchitectureLayer', label: 'ArchitectureLayer', layer: 'unknown' },{ id: '.LayerDependency', label: 'LayerDependency', layer: 'unknown' },{ id: '.ArchitectureViolation', label: 'ArchitectureViolation', layer: 'unknown' },{ id: '.DependencyGraph', label: 'DependencyGraph', layer: 'unknown' },{ id: '.DependencyNode', label: 'DependencyNode', layer: 'unknown' },{ id: '.DependencyEdge', label: 'DependencyEdge', layer: 'unknown' },{ id: '.DependencyCycle', label: 'DependencyCycle', layer: 'unknown' },{ id: '.PackageAnalysis', label: 'PackageAnalysis', layer: 'unknown' },{ id: '.LayerType', label: 'LayerType', layer: 'unknown' },{ id: '.ArchitecturePattern', label: 'ArchitecturePattern', layer: 'unknown' },{ id: '.ViolationType', label: 'ViolationType', layer: 'unknown' },{ id: '.NodeType', label: 'NodeType', layer: 'unknown' },{ id: '.DependencyType', label: 'DependencyType', layer: 'unknown' },{ id: '.CycleSeverity', label: 'CycleSeverity', layer: 'unknown' },{ id: '.Suggestion', label: 'Suggestion', layer: 'unknown' }];
+
+const edges = [];
+
+// Create a simple node-link diagram representation
+dependencyGraphContainer.innerHTML = 
+    '<div class="alert alert-info">' +
+    '<h6>Dependency Graph Summary</h6>' +
+    '<p><strong>Nodes:</strong> ' + nodes.length + ' classes/interfaces</p>' +
+    '<p><strong>Edges:</strong> ' + edges.length + ' dependencies</p>' +
+    '<p><strong>Packages:</strong> 1</p>' +
+    '<p><em>Note: Full interactive graph visualization requires additional libraries like D3.js or vis.js</em></p>' +
+    '</div>';
+
+<script>
+// LCOM Distribution Chart
+const lcomData = { labels: ['0'], data: [28] };
+
+const lcomCtx = document.getElementById('lcomChart').getContext('2d');
+new Chart(lcomCtx, {
+    type: 'bar',
+    data: {
+        labels: lcomData.labels,
+        datasets: [{
+            label: 'Number of Classes',
+            data: lcomData.data,
+            backgroundColor: 'rgba(54, 162, 235, 0.8)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            title: {
+                display: true,
+                text: 'LCOM Value Distribution'
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+
+// Cohesion Quality Chart
+const cohesionData = { labels: ['Excellent','Good','Moderate','Poor'], data: [28,0,0,0], colors: ['#28a745','#17a2b8','#ffc107','#dc3545'] };
+
+const cohesionCtx = document.getElementById('cohesionChart').getContext('2d');
+new Chart(cohesionCtx, {
+    type: 'doughnut',
+    data: {
+        labels: cohesionData.labels,
+        datasets: [{
+            data: cohesionData.data,
+            backgroundColor: cohesionData.colors,
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Cohesion Quality Distribution'
+            }
+        }
+    }
+});
+
+// Complexity Distribution Chart
+const complexityData = { labels: ['Simple (1)','Low (2-5)','Moderate (6-10)','High (11-20)','Very High (21+)'], data: [0,0,0,0,0], colors: ['#28a745','#17a2b8','#ffc107','#fd7e14','#dc3545'] };
+
+const complexityCtx = document.getElementById('complexityChart').getContext('2d');
+new Chart(complexityCtx, {
+    type: 'bar',
+    data: {
+        labels: complexityData.labels,
+        datasets: [{
+            label: 'Number of Methods',
+            data: complexityData.data,
+            backgroundColor: complexityData.colors,
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Method Complexity Distribution'
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+
+// Complexity vs Size Scatter Chart
+const scatterData = [];
+
+const scatterCtx = document.getElementById('complexityScatterChart').getContext('2d');
+new Chart(scatterCtx, {
+    type: 'scatter',
+    data: {
+        datasets: [{
+            label: 'Methods',
+            data: scatterData,
+            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Method Complexity vs Lines of Code'
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return context.raw.label + ' (CC: ' + context.raw.y + ', Lines: ' + context.raw.x + ')';
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                title: {
+                    display: true,
+                    text: 'Lines of Code'
+                }
+            },
+            y: {
+                title: {
+                    display: true,
+                    text: 'Cyclomatic Complexity'
+                }
+            }
+        }
+    }
+});
+
+// Table sorting and filtering functionality
+let sortDirection = {};
+let currentFilter = 'all';
+
+// Filter functionality
+document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        // Update active filter button
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        currentFilter = this.dataset.filter;
+        filterTable();
+    });
+});
+
+function filterTable() {
+    const rows = document.querySelectorAll('#classTable tbody tr');
+    rows.forEach(row => {
+        const quality = row.dataset.quality;
+        if (currentFilter === 'all' || quality === currentFilter) {
+            row.classList.remove('filtered');
+        } else {
+            row.classList.add('filtered');
+        }
+    });
+}
+
+// Sort functionality
+document.querySelectorAll('.sortable').forEach(th => {
+    th.addEventListener('click', function() {
+        const column = this.dataset.column;
+        const currentDirection = sortDirection[column] || 'asc';
+        const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+        
+        // Update sort direction
+        sortDirection[column] = newDirection;
+        
+        // Update sort indicators
+        document.querySelectorAll('.sort-indicator').forEach(indicator => {
+            indicator.classList.remove('active');
+            indicator.textContent = '↕️';
+        });
+        
+        const indicator = this.querySelector('.sort-indicator');
+        indicator.classList.add('active');
+        indicator.textContent = newDirection === 'asc' ? '↑' : '↓';
+        
+        sortTable(column, newDirection);
+    });
+});
+
+function sortTable(column, direction) {
+    const tbody = document.querySelector('#classTable tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    rows.sort((a, b) => {
+        let aVal, bVal;
+        
+        switch(column) {
+            case 'class':
+                aVal = a.dataset.class;
+                bVal = b.dataset.class;
+                break;
+            case 'file':
+                aVal = a.dataset.file;
+                bVal = b.dataset.file;
+                break;
+            case 'lcom':
+                aVal = parseInt(a.dataset.lcom);
+                bVal = parseInt(b.dataset.lcom);
+                break;
+            case 'methods':
+                aVal = parseInt(a.dataset.methods);
+                bVal = parseInt(b.dataset.methods);
+                break;
+            case 'properties':
+                aVal = parseInt(a.dataset.properties);
+                bVal = parseInt(b.dataset.properties);
+                break;
+            case 'quality':
+                const qualityOrder = {'excellent': 0, 'good': 1, 'moderate': 2, 'poor': 3};
+                aVal = qualityOrder[a.dataset.quality];
+                bVal = qualityOrder[b.dataset.quality];
+                break;
+            default:
+                return 0;
+        }
+        
+        if (typeof aVal === 'string') {
+            return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        } else {
+            return direction === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+    });
+    
+    // Re-append sorted rows
+    rows.forEach(row => tbody.appendChild(row));
+    
+    // Re-apply filter after sorting
+    filterTable();
+}
+
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

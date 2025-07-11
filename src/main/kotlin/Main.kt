@@ -42,8 +42,163 @@ data class ClassAnalysis(
 data class ProjectReport(
     val timestamp: String,
     val classes: List<ClassAnalysis>,
-    val summary: String
+    val summary: String,
+    val architectureAnalysis: ArchitectureAnalysis
 )
+
+// Architecture Analysis Data Structures
+data class ArchitectureAnalysis(
+    val dddPatterns: DddPatternAnalysis,
+    val layeredArchitecture: LayeredArchitectureAnalysis,
+    val dependencyGraph: DependencyGraph
+)
+
+data class DddPatternAnalysis(
+    val entities: List<DddEntity>,
+    val valueObjects: List<DddValueObject>,
+    val services: List<DddService>,
+    val repositories: List<DddRepository>,
+    val aggregates: List<DddAggregate>,
+    val domainEvents: List<DddDomainEvent>
+)
+
+data class DddEntity(
+    val className: String,
+    val fileName: String,
+    val hasUniqueId: Boolean,
+    val isMutable: Boolean,
+    val idFields: List<String>,
+    val confidence: Double
+)
+
+data class DddValueObject(
+    val className: String,
+    val fileName: String,
+    val isImmutable: Boolean,
+    val hasValueEquality: Boolean,
+    val properties: List<String>,
+    val confidence: Double
+)
+
+data class DddService(
+    val className: String,
+    val fileName: String,
+    val isStateless: Boolean,
+    val hasDomainLogic: Boolean,
+    val methods: List<String>,
+    val confidence: Double
+)
+
+data class DddRepository(
+    val className: String,
+    val fileName: String,
+    val isInterface: Boolean,
+    val hasDataAccess: Boolean,
+    val crudMethods: List<String>,
+    val confidence: Double
+)
+
+data class DddAggregate(
+    val rootEntity: String,
+    val relatedEntities: List<String>,
+    val confidence: Double
+)
+
+data class DddDomainEvent(
+    val className: String,
+    val fileName: String,
+    val isEvent: Boolean,
+    val confidence: Double
+)
+
+data class LayeredArchitectureAnalysis(
+    val layers: List<ArchitectureLayer>,
+    val dependencies: List<LayerDependency>,
+    val violations: List<ArchitectureViolation>,
+    val pattern: ArchitecturePattern
+)
+
+data class ArchitectureLayer(
+    val name: String,
+    val type: LayerType,
+    val packages: List<String>,
+    val classes: List<String>,
+    val level: Int
+)
+
+data class LayerDependency(
+    val fromLayer: String,
+    val toLayer: String,
+    val dependencyCount: Int,
+    val isValid: Boolean
+)
+
+data class ArchitectureViolation(
+    val fromClass: String,
+    val toClass: String,
+    val violationType: ViolationType,
+    val suggestion: String
+)
+
+data class DependencyGraph(
+    val nodes: List<DependencyNode>,
+    val edges: List<DependencyEdge>,
+    val cycles: List<DependencyCycle>,
+    val packages: List<PackageAnalysis>
+)
+
+data class DependencyNode(
+    val id: String,
+    val className: String,
+    val fileName: String,
+    val packageName: String,
+    val nodeType: NodeType,
+    val layer: String?
+)
+
+data class DependencyEdge(
+    val fromId: String,
+    val toId: String,
+    val dependencyType: DependencyType,
+    val strength: Int
+)
+
+data class DependencyCycle(
+    val nodes: List<String>,
+    val severity: CycleSeverity
+)
+
+data class PackageAnalysis(
+    val packageName: String,
+    val classes: List<String>,
+    val dependencies: List<String>,
+    val layer: String?,
+    val cohesion: Double
+)
+
+enum class LayerType {
+    PRESENTATION, APPLICATION, DOMAIN, INFRASTRUCTURE, DATA
+}
+
+enum class ArchitecturePattern {
+    LAYERED, HEXAGONAL, CLEAN, ONION, UNKNOWN
+}
+
+enum class ViolationType {
+    LAYER_VIOLATION, DEPENDENCY_INVERSION, CIRCULAR_DEPENDENCY
+}
+
+enum class NodeType {
+    CLASS, INTERFACE, ABSTRACT_CLASS, ENUM, OBJECT
+}
+
+enum class DependencyType {
+    INHERITANCE, COMPOSITION, ASSOCIATION, USAGE
+}
+
+enum class CycleSeverity {
+    LOW, MEDIUM, HIGH
+}
 
 fun main() {
     val currentDir = File(".")
@@ -70,12 +225,15 @@ fun main() {
     val psiFileFactory = PsiFileFactory.getInstance(env.project)
     val analyses = mutableListOf<ClassAnalysis>()
 
+    val allKtFiles = mutableListOf<KtFile>()
+    
     for (file in files) {
         val ktFile = psiFileFactory.createFileFromText(
             file.name,
             KotlinLanguage.INSTANCE,
             file.readText()
         ) as KtFile
+        allKtFiles.add(ktFile)
 
         for (classOrObject in ktFile.declarations.filterIsInstance<KtClassOrObject>()) {
             val analysis = analyzeClass(classOrObject, file.name)
@@ -83,10 +241,795 @@ fun main() {
         }
     }
 
-    generateSummary(analyses)
-    generateHtmlReport(analyses)
+    val architectureAnalysis = analyzeArchitecture(allKtFiles, analyses)
+    generateSummary(analyses, architectureAnalysis)
+    generateHtmlReport(analyses, architectureAnalysis)
 
     Disposer.dispose(disposable)
+}
+
+fun analyzeArchitecture(ktFiles: List<KtFile>, classAnalyses: List<ClassAnalysis>): ArchitectureAnalysis {
+    val dependencyGraph = buildDependencyGraph(ktFiles)
+    val dddPatterns = analyzeDddPatterns(ktFiles, classAnalyses)
+    val layeredArchitecture = analyzeLayeredArchitecture(ktFiles, dependencyGraph)
+    
+    return ArchitectureAnalysis(
+        dddPatterns = dddPatterns,
+        layeredArchitecture = layeredArchitecture,
+        dependencyGraph = dependencyGraph
+    )
+}
+
+fun buildDependencyGraph(ktFiles: List<KtFile>): DependencyGraph {
+    val nodes = mutableListOf<DependencyNode>()
+    val edges = mutableListOf<DependencyEdge>()
+    val packages = mutableMapOf<String, MutableList<String>>()
+    
+    // Build nodes
+    for (ktFile in ktFiles) {
+        val packageName = ktFile.packageFqName.asString()
+        
+        for (classOrObject in ktFile.declarations.filterIsInstance<KtClassOrObject>()) {
+            val className = classOrObject.name ?: "Anonymous"
+            val nodeType = when {
+                classOrObject is KtClass && classOrObject.isInterface() -> NodeType.INTERFACE
+                classOrObject is KtClass && classOrObject.isAbstract() -> NodeType.ABSTRACT_CLASS
+                classOrObject is KtObjectDeclaration -> NodeType.OBJECT
+                classOrObject is KtEnumEntry -> NodeType.ENUM
+                else -> NodeType.CLASS
+            }
+            
+            val node = DependencyNode(
+                id = "$packageName.$className",
+                className = className,
+                fileName = ktFile.name,
+                packageName = packageName,
+                nodeType = nodeType,
+                layer = inferLayer(packageName, className)
+            )
+            nodes.add(node)
+            
+            packages.getOrPut(packageName) { mutableListOf() }.add(className)
+        }
+    }
+    
+    // Build edges by analyzing imports and references
+    for (ktFile in ktFiles) {
+        val currentPackage = ktFile.packageFqName.asString()
+        
+        for (classOrObject in ktFile.declarations.filterIsInstance<KtClassOrObject>()) {
+            val currentClass = classOrObject.name ?: "Anonymous"
+            val currentId = "$currentPackage.$currentClass"
+            
+            // Analyze supertype dependencies
+            classOrObject.superTypeListEntries.forEach { superTypeEntry ->
+                val referencedType = superTypeEntry.typeReference?.text
+                if (referencedType != null) {
+                    val targetId = resolveTypeReference(referencedType, ktFiles, currentPackage)
+                    if (targetId != null) {
+                        edges.add(DependencyEdge(
+                            fromId = currentId,
+                            toId = targetId,
+                            dependencyType = DependencyType.INHERITANCE,
+                            strength = 3
+                        ))
+                    }
+                }
+            }
+            
+            // Analyze property dependencies
+            classOrObject.declarations.filterIsInstance<KtProperty>().forEach { property ->
+                property.typeReference?.text?.let { typeRef ->
+                    val targetId = resolveTypeReference(typeRef, ktFiles, currentPackage)
+                    if (targetId != null) {
+                        edges.add(DependencyEdge(
+                            fromId = currentId,
+                            toId = targetId,
+                            dependencyType = DependencyType.COMPOSITION,
+                            strength = 2
+                        ))
+                    }
+                }
+            }
+            
+            // Analyze method parameter and return type dependencies
+            classOrObject.body?.functions?.forEach { function ->
+                function.valueParameters.forEach { param ->
+                    param.typeReference?.text?.let { typeRef ->
+                        val targetId = resolveTypeReference(typeRef, ktFiles, currentPackage)
+                        if (targetId != null) {
+                            edges.add(DependencyEdge(
+                                fromId = currentId,
+                                toId = targetId,
+                                dependencyType = DependencyType.USAGE,
+                                strength = 1
+                            ))
+                        }
+                    }
+                }
+                
+                function.typeReference?.text?.let { typeRef ->
+                    val targetId = resolveTypeReference(typeRef, ktFiles, currentPackage)
+                    if (targetId != null) {
+                        edges.add(DependencyEdge(
+                            fromId = currentId,
+                            toId = targetId,
+                            dependencyType = DependencyType.USAGE,
+                            strength = 1
+                        ))
+                    }
+                }
+            }
+        }
+    }
+    
+    val cycles = detectCycles(nodes, edges)
+    val packageAnalyses = packages.map { (packageName, classes) ->
+        PackageAnalysis(
+            packageName = packageName,
+            classes = classes,
+            dependencies = edges.filter { edge -> 
+                nodes.find { it.id == edge.fromId }?.packageName == packageName 
+            }.mapNotNull { edge ->
+                nodes.find { it.id == edge.toId }?.packageName
+            }.distinct(),
+            layer = inferLayer(packageName, ""),
+            cohesion = calculatePackageCohesion(packageName, edges, nodes)
+        )
+    }
+    
+    return DependencyGraph(
+        nodes = nodes,
+        edges = edges,
+        cycles = cycles,
+        packages = packageAnalyses
+    )
+}
+
+fun resolveTypeReference(typeRef: String, ktFiles: List<KtFile>, currentPackage: String): String? {
+    val cleanTypeRef = typeRef.replace("<.*>".toRegex(), "").replace("?", "").trim()
+    
+    for (ktFile in ktFiles) {
+        val packageName = ktFile.packageFqName.asString()
+        for (classOrObject in ktFile.declarations.filterIsInstance<KtClassOrObject>()) {
+            val className = classOrObject.name ?: continue
+            
+            if (className == cleanTypeRef) {
+                return "$packageName.$className"
+            }
+        }
+    }
+    
+    return null
+}
+
+fun inferLayer(packageName: String, className: String): String? {
+    val packageLower = packageName.lowercase()
+    val classLower = className.lowercase()
+    
+    return when {
+        packageLower.contains("controller") || packageLower.contains("web") || 
+        packageLower.contains("api") || packageLower.contains("ui") -> "presentation"
+        packageLower.contains("service") || packageLower.contains("application") -> "application"
+        packageLower.contains("domain") || packageLower.contains("model") -> "domain"
+        packageLower.contains("repository") || packageLower.contains("dao") || 
+        packageLower.contains("data") || packageLower.contains("persistence") -> "data"
+        packageLower.contains("infrastructure") || packageLower.contains("config") -> "infrastructure"
+        classLower.endsWith("controller") || classLower.endsWith("api") -> "presentation"
+        classLower.endsWith("service") -> "application"
+        classLower.endsWith("repository") || classLower.endsWith("dao") -> "data"
+        else -> null
+    }
+}
+
+fun detectCycles(nodes: List<DependencyNode>, edges: List<DependencyEdge>): List<DependencyCycle> {
+    val cycles = mutableListOf<DependencyCycle>()
+    val visited = mutableSetOf<String>()
+    val recursionStack = mutableSetOf<String>()
+    val adjacencyList = edges.groupBy { it.fromId }
+    
+    fun dfs(nodeId: String, path: MutableList<String>): Boolean {
+        if (recursionStack.contains(nodeId)) {
+            val cycleStart = path.indexOf(nodeId)
+            if (cycleStart != -1) {
+                val cyclePath = path.subList(cycleStart, path.size).toList() // Create a copy
+                val severity = when {
+                    cyclePath.size <= 3 -> CycleSeverity.LOW
+                    cyclePath.size <= 6 -> CycleSeverity.MEDIUM
+                    else -> CycleSeverity.HIGH
+                }
+                cycles.add(DependencyCycle(cyclePath, severity))
+                return true
+            }
+        }
+        
+        if (visited.contains(nodeId)) return false
+        
+        visited.add(nodeId)
+        recursionStack.add(nodeId)
+        path.add(nodeId)
+        
+        adjacencyList[nodeId]?.forEach { edge ->
+            dfs(edge.toId, path)
+        }
+        
+        recursionStack.remove(nodeId)
+        path.removeAt(path.size - 1)
+        
+        return false
+    }
+    
+    nodes.forEach { node ->
+        if (!visited.contains(node.id)) {
+            dfs(node.id, mutableListOf())
+        }
+    }
+    
+    return cycles
+}
+
+fun calculatePackageCohesion(packageName: String, edges: List<DependencyEdge>, nodes: List<DependencyNode>): Double {
+    val packageNodes = nodes.filter { it.packageName == packageName }
+    if (packageNodes.size < 2) return 1.0
+    
+    val internalEdges = edges.filter { edge ->
+        val fromNode = nodes.find { it.id == edge.fromId }
+        val toNode = nodes.find { it.id == edge.toId }
+        fromNode?.packageName == packageName && toNode?.packageName == packageName
+    }
+    
+    val maxPossibleEdges = packageNodes.size * (packageNodes.size - 1)
+    return if (maxPossibleEdges > 0) internalEdges.size.toDouble() / maxPossibleEdges else 0.0
+}
+
+fun analyzeDddPatterns(ktFiles: List<KtFile>, classAnalyses: List<ClassAnalysis>): DddPatternAnalysis {
+    val entities = mutableListOf<DddEntity>()
+    val valueObjects = mutableListOf<DddValueObject>()
+    val services = mutableListOf<DddService>()
+    val repositories = mutableListOf<DddRepository>()
+    val aggregates = mutableListOf<DddAggregate>()
+    val domainEvents = mutableListOf<DddDomainEvent>()
+    
+    for (ktFile in ktFiles) {
+        for (classOrObject in ktFile.declarations.filterIsInstance<KtClassOrObject>()) {
+            val className = classOrObject.name ?: continue
+            val fileName = ktFile.name
+            
+            // Detect Entity
+            val entityAnalysis = analyzeEntity(classOrObject, className, fileName)
+            if (entityAnalysis.confidence > 0.3) {
+                entities.add(entityAnalysis)
+            }
+            
+            // Detect Value Object
+            val valueObjectAnalysis = analyzeValueObject(classOrObject, className, fileName)
+            if (valueObjectAnalysis.confidence > 0.3) {
+                valueObjects.add(valueObjectAnalysis)
+            }
+            
+            // Detect Service
+            val serviceAnalysis = analyzeService(classOrObject, className, fileName)
+            if (serviceAnalysis.confidence > 0.3) {
+                services.add(serviceAnalysis)
+            }
+            
+            // Detect Repository
+            val repositoryAnalysis = analyzeRepository(classOrObject, className, fileName)
+            if (repositoryAnalysis.confidence > 0.3) {
+                repositories.add(repositoryAnalysis)
+            }
+            
+            // Detect Domain Event
+            val domainEventAnalysis = analyzeDomainEvent(classOrObject, className, fileName)
+            if (domainEventAnalysis.confidence > 0.3) {
+                domainEvents.add(domainEventAnalysis)
+            }
+        }
+    }
+    
+    // Detect Aggregates based on entity relationships
+    val aggregateAnalysis = analyzeAggregates(entities, ktFiles)
+    aggregates.addAll(aggregateAnalysis)
+    
+    return DddPatternAnalysis(
+        entities = entities,
+        valueObjects = valueObjects,
+        services = services,
+        repositories = repositories,
+        aggregates = aggregates,
+        domainEvents = domainEvents
+    )
+}
+
+fun analyzeEntity(classOrObject: KtClassOrObject, className: String, fileName: String): DddEntity {
+    var confidence = 0.0
+    var hasUniqueId = false
+    var isMutable = false
+    val idFields = mutableListOf<String>()
+    
+    val properties = classOrObject.declarations.filterIsInstance<KtProperty>()
+    
+    // Check for ID fields
+    properties.forEach { property ->
+        val propName = property.name?.lowercase() ?: ""
+        if (propName.contains("id") || propName == "uuid" || propName == "key") {
+            hasUniqueId = true
+            idFields.add(property.name ?: "")
+            confidence += 0.3
+        }
+    }
+    
+    // Check for mutability
+    val mutableProperties = properties.filter { it.isVar }
+    if (mutableProperties.isNotEmpty()) {
+        isMutable = true
+        confidence += 0.2
+    }
+    
+    // Check for equals/hashCode methods
+    val methods = classOrObject.body?.functions ?: emptyList()
+    val hasEquals = methods.any { it.name == "equals" }
+    val hasHashCode = methods.any { it.name == "hashCode" }
+    
+    if (hasEquals && hasHashCode) {
+        confidence += 0.3
+    }
+    
+    // Check class name patterns
+    if (className.endsWith("Entity") || className.endsWith("Aggregate")) {
+        confidence += 0.2
+    }
+    
+    // Check for lifecycle methods
+    val hasLifecycleMethods = methods.any { method ->
+        val name = method.name?.lowercase() ?: ""
+        name.contains("create") || name.contains("update") || name.contains("delete") || 
+        name.contains("save") || name.contains("activate") || name.contains("deactivate")
+    }
+    
+    if (hasLifecycleMethods) {
+        confidence += 0.2
+    }
+    
+    return DddEntity(
+        className = className,
+        fileName = fileName,
+        hasUniqueId = hasUniqueId,
+        isMutable = isMutable,
+        idFields = idFields,
+        confidence = confidence.coerceAtMost(1.0)
+    )
+}
+
+fun analyzeValueObject(classOrObject: KtClassOrObject, className: String, fileName: String): DddValueObject {
+    var confidence = 0.0
+    var isImmutable = false
+    var hasValueEquality = false
+    val properties = mutableListOf<String>()
+    
+    val classProperties = classOrObject.declarations.filterIsInstance<KtProperty>()
+    
+    // Check for immutability
+    val immutableProperties = classProperties.filter { !it.isVar }
+    if (immutableProperties.isNotEmpty() && immutableProperties.size == classProperties.size) {
+        isImmutable = true
+        confidence += 0.4
+    }
+    
+    classProperties.forEach { property ->
+        properties.add(property.name ?: "")
+    }
+    
+    // Check for data class
+    if (classOrObject is KtClass && classOrObject.isData()) {
+        confidence += 0.3
+        hasValueEquality = true
+    }
+    
+    // Check for custom equals/hashCode based on all properties
+    val methods = classOrObject.body?.functions ?: emptyList()
+    val hasEquals = methods.any { it.name == "equals" }
+    val hasHashCode = methods.any { it.name == "hashCode" }
+    
+    if (hasEquals && hasHashCode) {
+        hasValueEquality = true
+        confidence += 0.2
+    }
+    
+    // Check class name patterns
+    if (className.endsWith("Value") || className.endsWith("VO") || className.endsWith("ValueObject")) {
+        confidence += 0.2
+    }
+    
+    // Check for no business logic methods
+    val businessMethods = methods.filter { method ->
+        val name = method.name?.lowercase() ?: ""
+        !name.contains("equals") && !name.contains("hashcode") && !name.contains("tostring") &&
+        !name.contains("copy") && !name.contains("component")
+    }
+    
+    if (businessMethods.isEmpty() && properties.isNotEmpty()) {
+        confidence += 0.2
+    }
+    
+    return DddValueObject(
+        className = className,
+        fileName = fileName,
+        isImmutable = isImmutable,
+        hasValueEquality = hasValueEquality,
+        properties = properties,
+        confidence = confidence.coerceAtMost(1.0)
+    )
+}
+
+fun analyzeService(classOrObject: KtClassOrObject, className: String, fileName: String): DddService {
+    var confidence = 0.0
+    var isStateless = false
+    var hasDomainLogic = false
+    val methods = mutableListOf<String>()
+    
+    val classProperties = classOrObject.declarations.filterIsInstance<KtProperty>()
+    val classMethods = classOrObject.body?.functions ?: emptyList()
+    
+    // Check for statelessness (no or minimal state)
+    if (classProperties.isEmpty() || classProperties.all { it.name?.lowercase()?.contains("repository") == true }) {
+        isStateless = true
+        confidence += 0.3
+    }
+    
+    // Check class name patterns
+    if (className.endsWith("Service") || className.endsWith("Manager") || className.endsWith("Handler")) {
+        confidence += 0.3
+    }
+    
+    classMethods.forEach { method ->
+        methods.add(method.name ?: "")
+        val methodName = method.name?.lowercase() ?: ""
+        
+        // Check for domain logic patterns
+        if (methodName.contains("calculate") || methodName.contains("validate") || 
+            methodName.contains("process") || methodName.contains("handle") ||
+            methodName.contains("execute") || methodName.contains("apply")) {
+            hasDomainLogic = true
+            confidence += 0.1
+        }
+    }
+    
+    // Check for interface implementation
+    if (classOrObject is KtClass && classOrObject.isInterface()) {
+        confidence += 0.2
+    }
+    
+    // Check for dependency injection patterns
+    val constructor = classOrObject.primaryConstructor
+    if (constructor != null && constructor.valueParameters.isNotEmpty()) {
+        confidence += 0.2
+    }
+    
+    return DddService(
+        className = className,
+        fileName = fileName,
+        isStateless = isStateless,
+        hasDomainLogic = hasDomainLogic,
+        methods = methods,
+        confidence = confidence.coerceAtMost(1.0)
+    )
+}
+
+fun analyzeRepository(classOrObject: KtClassOrObject, className: String, fileName: String): DddRepository {
+    var confidence = 0.0
+    var isInterface = false
+    var hasDataAccess = false
+    val crudMethods = mutableListOf<String>()
+    
+    val methods = classOrObject.body?.functions ?: emptyList()
+    
+    // Check if it's an interface
+    if (classOrObject is KtClass && classOrObject.isInterface()) {
+        isInterface = true
+        confidence += 0.3
+    }
+    
+    // Check class name patterns
+    if (className.endsWith("Repository") || className.endsWith("DAO") || className.endsWith("DataAccess")) {
+        confidence += 0.4
+    }
+    
+    // Check for CRUD methods
+    methods.forEach { method ->
+        val methodName = method.name?.lowercase() ?: ""
+        if (methodName.contains("save") || methodName.contains("create") || methodName.contains("insert") ||
+            methodName.contains("find") || methodName.contains("get") || methodName.contains("select") ||
+            methodName.contains("update") || methodName.contains("modify") ||
+            methodName.contains("delete") || methodName.contains("remove")) {
+            crudMethods.add(method.name ?: "")
+            hasDataAccess = true
+            confidence += 0.1
+        }
+    }
+    
+    // Check for collection-like methods
+    val hasCollectionMethods = methods.any { method ->
+        val name = method.name?.lowercase() ?: ""
+        name.contains("findall") || name.contains("getall") || name.contains("list") ||
+        name.contains("count") || name.contains("exists")
+    }
+    
+    if (hasCollectionMethods) {
+        confidence += 0.2
+    }
+    
+    return DddRepository(
+        className = className,
+        fileName = fileName,
+        isInterface = isInterface,
+        hasDataAccess = hasDataAccess,
+        crudMethods = crudMethods,
+        confidence = confidence.coerceAtMost(1.0)
+    )
+}
+
+fun analyzeDomainEvent(classOrObject: KtClassOrObject, className: String, fileName: String): DddDomainEvent {
+    var confidence = 0.0
+    var isEvent = false
+    
+    // Check class name patterns
+    if (className.endsWith("Event") || className.endsWith("Occurred") || className.endsWith("Happened")) {
+        isEvent = true
+        confidence += 0.4
+    }
+    
+    // Check for event-related properties
+    val properties = classOrObject.declarations.filterIsInstance<KtProperty>()
+    val hasTimestamp = properties.any { 
+        val name = it.name?.lowercase() ?: ""
+        name.contains("timestamp") || name.contains("occurredat") || name.contains("time")
+    }
+    
+    if (hasTimestamp) {
+        confidence += 0.3
+    }
+    
+    // Check for immutability (events should be immutable)
+    val immutableProperties = properties.filter { !it.isVar }
+    if (immutableProperties.isNotEmpty() && immutableProperties.size == properties.size) {
+        confidence += 0.2
+    }
+    
+    // Check for data class
+    if (classOrObject is KtClass && classOrObject.isData()) {
+        confidence += 0.1
+    }
+    
+    return DddDomainEvent(
+        className = className,
+        fileName = fileName,
+        isEvent = isEvent,
+        confidence = confidence.coerceAtMost(1.0)
+    )
+}
+
+fun analyzeAggregates(entities: List<DddEntity>, ktFiles: List<KtFile>): List<DddAggregate> {
+    val aggregates = mutableListOf<DddAggregate>()
+    
+    // Simple heuristic: entities with high confidence that reference other entities
+    entities.filter { it.confidence > 0.7 }.forEach { entity ->
+        val relatedEntities = findRelatedEntities(entity, entities, ktFiles)
+        if (relatedEntities.isNotEmpty()) {
+            aggregates.add(DddAggregate(
+                rootEntity = entity.className,
+                relatedEntities = relatedEntities,
+                confidence = entity.confidence * 0.8
+            ))
+        }
+    }
+    
+    return aggregates
+}
+
+fun findRelatedEntities(entity: DddEntity, allEntities: List<DddEntity>, ktFiles: List<KtFile>): List<String> {
+    val relatedEntities = mutableListOf<String>()
+    
+    // Find the class definition for the entity
+    for (ktFile in ktFiles) {
+        for (classOrObject in ktFile.declarations.filterIsInstance<KtClassOrObject>()) {
+            if (classOrObject.name == entity.className) {
+                // Check properties for references to other entities
+                val properties = classOrObject.declarations.filterIsInstance<KtProperty>()
+                properties.forEach { property ->
+                    val propertyType = property.typeReference?.text?.replace("?", "")?.trim()
+                    if (propertyType != null) {
+                        val referencedEntity = allEntities.find { it.className == propertyType }
+                        if (referencedEntity != null && referencedEntity.className != entity.className) {
+                            relatedEntities.add(referencedEntity.className)
+                        }
+                    }
+                }
+                break
+            }
+        }
+    }
+    
+    return relatedEntities
+}
+
+fun analyzeLayeredArchitecture(ktFiles: List<KtFile>, dependencyGraph: DependencyGraph): LayeredArchitectureAnalysis {
+    val layers = mutableListOf<ArchitectureLayer>()
+    val dependencies = mutableListOf<LayerDependency>()
+    val violations = mutableListOf<ArchitectureViolation>()
+    
+    // Identify layers based on packages and classes
+    val layerMap = mutableMapOf<String, MutableList<String>>()
+    val layerPackages = mutableMapOf<String, MutableList<String>>()
+    
+    for (node in dependencyGraph.nodes) {
+        val layer = node.layer ?: "unknown"
+        layerMap.getOrPut(layer) { mutableListOf() }.add(node.className)
+        layerPackages.getOrPut(layer) { mutableListOf() }.add(node.packageName)
+    }
+    
+    // Create layer objects
+    layerMap.forEach { (layerName, classes) ->
+        val layerType = when (layerName) {
+            "presentation" -> LayerType.PRESENTATION
+            "application" -> LayerType.APPLICATION
+            "domain" -> LayerType.DOMAIN
+            "data" -> LayerType.DATA
+            "infrastructure" -> LayerType.INFRASTRUCTURE
+            else -> LayerType.DOMAIN
+        }
+        
+        val level = when (layerName) {
+            "presentation" -> 1
+            "application" -> 2
+            "domain" -> 3
+            "data" -> 4
+            "infrastructure" -> 4
+            else -> 3
+        }
+        
+        layers.add(ArchitectureLayer(
+            name = layerName,
+            type = layerType,
+            packages = layerPackages[layerName]?.distinct() ?: emptyList(),
+            classes = classes.distinct(),
+            level = level
+        ))
+    }
+    
+    // Analyze dependencies between layers
+    val layerDependencyMap = mutableMapOf<Pair<String, String>, MutableList<DependencyEdge>>()
+    
+    for (edge in dependencyGraph.edges) {
+        val fromNode = dependencyGraph.nodes.find { it.id == edge.fromId }
+        val toNode = dependencyGraph.nodes.find { it.id == edge.toId }
+        
+        if (fromNode != null && toNode != null) {
+            val fromLayer = fromNode.layer ?: "unknown"
+            val toLayer = toNode.layer ?: "unknown"
+            
+            if (fromLayer != toLayer) {
+                val layerPair = Pair(fromLayer, toLayer)
+                layerDependencyMap.getOrPut(layerPair) { mutableListOf() }.add(edge)
+            }
+        }
+    }
+    
+    // Create layer dependencies and check for violations
+    layerDependencyMap.forEach { (layerPair, edges) ->
+        val fromLayer = layerPair.first
+        val toLayer = layerPair.second
+        
+        val isValid = isValidLayerDependency(fromLayer, toLayer)
+        
+        dependencies.add(LayerDependency(
+            fromLayer = fromLayer,
+            toLayer = toLayer,
+            dependencyCount = edges.size,
+            isValid = isValid
+        ))
+        
+        if (!isValid) {
+            edges.forEach { edge ->
+                val fromNode = dependencyGraph.nodes.find { it.id == edge.fromId }
+                val toNode = dependencyGraph.nodes.find { it.id == edge.toId }
+                
+                if (fromNode != null && toNode != null) {
+                    violations.add(ArchitectureViolation(
+                        fromClass = fromNode.className,
+                        toClass = toNode.className,
+                        violationType = ViolationType.LAYER_VIOLATION,
+                        suggestion = "Layer '${fromLayer}' should not depend on layer '${toLayer}'. Consider introducing an interface or moving the dependency to a proper layer."
+                    ))
+                }
+            }
+        }
+    }
+    
+    // Check for circular dependencies
+    for (cycle in dependencyGraph.cycles) {
+        if (cycle.nodes.size > 1) {
+            for (i in cycle.nodes.indices) {
+                val currentNode = cycle.nodes[i]
+                val nextNode = cycle.nodes[(i + 1) % cycle.nodes.size]
+                
+                violations.add(ArchitectureViolation(
+                    fromClass = currentNode.substringAfterLast("."),
+                    toClass = nextNode.substringAfterLast("."),
+                    violationType = ViolationType.CIRCULAR_DEPENDENCY,
+                    suggestion = "Circular dependency detected. Consider breaking the cycle by introducing interfaces or rearranging dependencies."
+                ))
+            }
+        }
+    }
+    
+    // Determine architecture pattern
+    val pattern = determineArchitecturePattern(layers, dependencies)
+    
+    return LayeredArchitectureAnalysis(
+        layers = layers,
+        dependencies = dependencies,
+        violations = violations,
+        pattern = pattern
+    )
+}
+
+fun isValidLayerDependency(fromLayer: String, toLayer: String): Boolean {
+    // Define valid layer dependencies (higher layers can depend on lower layers)
+    val layerHierarchy = mapOf(
+        "presentation" to 1,
+        "application" to 2,
+        "domain" to 3,
+        "data" to 4,
+        "infrastructure" to 4
+    )
+    
+    val fromLevel = layerHierarchy[fromLayer] ?: 3
+    val toLevel = layerHierarchy[toLayer] ?: 3
+    
+    // Special cases
+    if (fromLayer == "unknown" || toLayer == "unknown") return true
+    if (fromLayer == toLayer) return true
+    
+    // Presentation can depend on application and domain
+    if (fromLayer == "presentation" && (toLayer == "application" || toLayer == "domain")) return true
+    
+    // Application can depend on domain
+    if (fromLayer == "application" && toLayer == "domain") return true
+    
+    // Domain should not depend on other layers (except infrastructure for technical concerns)
+    if (fromLayer == "domain" && toLayer == "infrastructure") return true
+    if (fromLayer == "domain" && toLayer != "domain") return false
+    
+    // Data/Infrastructure can depend on domain
+    if ((fromLayer == "data" || fromLayer == "infrastructure") && toLayer == "domain") return true
+    
+    // General rule: higher level (lower number) can depend on lower level (higher number)
+    return fromLevel <= toLevel
+}
+
+fun determineArchitecturePattern(layers: List<ArchitectureLayer>, dependencies: List<LayerDependency>): ArchitecturePattern {
+    val layerNames = layers.map { it.name }.toSet()
+    
+    // Check for hexagonal/clean architecture patterns
+    val hasDomainLayer = layerNames.contains("domain")
+    val hasInfrastructureLayer = layerNames.contains("infrastructure")
+    val hasApplicationLayer = layerNames.contains("application")
+    
+    // Check dependency directions
+    val domainDependencies = dependencies.filter { it.fromLayer == "domain" }
+    val domainIsIndependent = domainDependencies.all { it.toLayer == "domain" || it.toLayer == "infrastructure" }
+    
+    return when {
+        hasDomainLayer && hasInfrastructureLayer && hasApplicationLayer && domainIsIndependent -> {
+            // Check for hexagonal indicators
+            val hasPortsAndAdapters = layerNames.any { it.contains("port") || it.contains("adapter") }
+            if (hasPortsAndAdapters) ArchitecturePattern.HEXAGONAL else ArchitecturePattern.CLEAN
+        }
+        hasDomainLayer && domainIsIndependent -> ArchitecturePattern.ONION
+        layerNames.size >= 3 -> ArchitecturePattern.LAYERED
+        else -> ArchitecturePattern.UNKNOWN
+    }
 }
 
 fun analyzeClass(classOrObject: KtClassOrObject, fileName: String): ClassAnalysis {
@@ -339,7 +1282,7 @@ fun generateSuggestions(lcom: Int, methodProps: Map<String, Set<String>>, props:
     return suggestions
 }
 
-fun generateSummary(analyses: List<ClassAnalysis>) {
+fun generateSummary(analyses: List<ClassAnalysis>, architectureAnalysis: ArchitectureAnalysis) {
     val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
     
     println("\n" + "=".repeat(60))
@@ -433,8 +1376,32 @@ fun generateSummary(analyses: List<ClassAnalysis>) {
         }
     }
     
+    // Architecture Summary
+    println("\n🏗️ ARCHITECTURE ANALYSIS")
+    println("   Pattern: ${architectureAnalysis.layeredArchitecture.pattern}")
+    println("   Layers: ${architectureAnalysis.layeredArchitecture.layers.size}")
+    println("   Dependencies: ${architectureAnalysis.layeredArchitecture.dependencies.size}")
+    println("   Violations: ${architectureAnalysis.layeredArchitecture.violations.size}")
+    
+    // DDD Patterns Summary
+    val ddd = architectureAnalysis.dddPatterns
+    println("\n📐 DDD PATTERNS DETECTED")
+    println("   Entities: ${ddd.entities.size}")
+    println("   Value Objects: ${ddd.valueObjects.size}")
+    println("   Services: ${ddd.services.size}")
+    println("   Repositories: ${ddd.repositories.size}")
+    println("   Aggregates: ${ddd.aggregates.size}")
+    
+    // Dependency Graph Summary
+    val graph = architectureAnalysis.dependencyGraph
+    println("\n🌐 DEPENDENCY GRAPH")
+    println("   Nodes: ${graph.nodes.size}")
+    println("   Edges: ${graph.edges.size}")
+    println("   Cycles: ${graph.cycles.size}")
+    println("   Packages: ${graph.packages.size}")
+    
     println("\n📄 Interactive report: kotlin-metrics-report.html")
-    println("   Open in browser for detailed analysis, charts, and suggestions")
+    println("   Open in browser for detailed analysis, charts, and architecture visualization")
     println("=".repeat(60))
 }
 
@@ -452,13 +1419,13 @@ fun getComplexityQualityIcon(avgComplexity: Double): String = when {
     else -> "❌"
 }
 
-fun generateHtmlReport(analyses: List<ClassAnalysis>) {
+fun generateHtmlReport(analyses: List<ClassAnalysis>, architectureAnalysis: ArchitectureAnalysis) {
     val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
     val reportFile = File("kotlin-metrics-report.html")
     
     val html = buildString {
         append(generateHtmlHeader())
-        append(generateHtmlBody(analyses, timestamp))
+        append(generateHtmlBody(analyses, architectureAnalysis, timestamp))
         append(generateHtmlFooter())
     }
     
@@ -500,7 +1467,7 @@ fun generateHtmlHeader(): String = """
 <body>
 """
 
-fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
+fun generateHtmlBody(analyses: List<ClassAnalysis>, architectureAnalysis: ArchitectureAnalysis, timestamp: String): String {
     val cohesionDistribution = analyses.groupBy { 
         when (it.lcom) {
             0 -> "Excellent"
@@ -593,6 +1560,11 @@ fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="complexity-tab" data-bs-toggle="tab" data-bs-target="#complexity" type="button" role="tab">
                 Cyclomatic Complexity
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="architecture-tab" data-bs-toggle="tab" data-bs-target="#architecture" type="button" role="tab">
+                Architecture
             </button>
         </li>
     </ul>
@@ -854,8 +1826,295 @@ fun generateHtmlBody(analyses: List<ClassAnalysis>, timestamp: String): String {
                 </div>
             </div>
         </div>
+        
+        <!-- Architecture Analysis Tab -->
+        <div class="tab-pane fade" id="architecture" role="tabpanel">
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Architecture Pattern: ${architectureAnalysis.layeredArchitecture.pattern}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="layerChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>DDD Patterns Distribution</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="dddChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dependency Graph Visualization -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Dependency Graph</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="dependencyGraph" style="height: 500px; border: 1px solid #ddd;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Architecture Violations -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Architecture Violations</h5>
+                        </div>
+                        <div class="card-body">
+                            ${if (architectureAnalysis.layeredArchitecture.violations.isNotEmpty()) {
+                                """
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>From Class</th>
+                                                <th>To Class</th>
+                                                <th>Violation Type</th>
+                                                <th>Suggestion</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${architectureAnalysis.layeredArchitecture.violations.joinToString("") { violation ->
+                                                """
+                                                <tr>
+                                                    <td><strong>${violation.fromClass}</strong></td>
+                                                    <td><strong>${violation.toClass}</strong></td>
+                                                    <td>
+                                                        <span class="badge ${when (violation.violationType) {
+                                                            ViolationType.LAYER_VIOLATION -> "bg-warning"
+                                                            ViolationType.CIRCULAR_DEPENDENCY -> "bg-danger"
+                                                            else -> "bg-secondary"
+                                                        }}">${violation.violationType}</span>
+                                                    </td>
+                                                    <td>${violation.suggestion}</td>
+                                                </tr>
+                                                """
+                                            }}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                """
+                            } else {
+                                """
+                                <div class="alert alert-success">
+                                    <i class="fas fa-check-circle"></i> No architecture violations detected!
+                                </div>
+                                """
+                            }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- DDD Patterns Details -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Detected Entities</h5>
+                        </div>
+                        <div class="card-body">
+                            ${if (architectureAnalysis.dddPatterns.entities.isNotEmpty()) {
+                                """
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Class</th>
+                                                <th>Has ID</th>
+                                                <th>Mutable</th>
+                                                <th>Confidence</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${architectureAnalysis.dddPatterns.entities.joinToString("") { entity ->
+                                                """
+                                                <tr>
+                                                    <td><strong>${entity.className}</strong></td>
+                                                    <td>${if (entity.hasUniqueId) "✅" else "❌"}</td>
+                                                    <td>${if (entity.isMutable) "✅" else "❌"}</td>
+                                                    <td>
+                                                        <span class="badge ${when {
+                                                            entity.confidence >= 0.7 -> "bg-success"
+                                                            entity.confidence >= 0.5 -> "bg-warning"
+                                                            else -> "bg-secondary"
+                                                        }}">${"%.0f".format(entity.confidence * 100)}%</span>
+                                                    </td>
+                                                </tr>
+                                                """
+                                            }}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                """
+                            } else {
+                                "<p class='text-muted'>No entities detected</p>"
+                            }}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Detected Services</h5>
+                        </div>
+                        <div class="card-body">
+                            ${if (architectureAnalysis.dddPatterns.services.isNotEmpty()) {
+                                """
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Class</th>
+                                                <th>Stateless</th>
+                                                <th>Domain Logic</th>
+                                                <th>Confidence</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${architectureAnalysis.dddPatterns.services.joinToString("") { service ->
+                                                """
+                                                <tr>
+                                                    <td><strong>${service.className}</strong></td>
+                                                    <td>${if (service.isStateless) "✅" else "❌"}</td>
+                                                    <td>${if (service.hasDomainLogic) "✅" else "❌"}</td>
+                                                    <td>
+                                                        <span class="badge ${when {
+                                                            service.confidence >= 0.7 -> "bg-success"
+                                                            service.confidence >= 0.5 -> "bg-warning"
+                                                            else -> "bg-secondary"
+                                                        }}">${"%.0f".format(service.confidence * 100)}%</span>
+                                                    </td>
+                                                </tr>
+                                                """
+                                            }}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                """
+                            } else {
+                                "<p class='text-muted'>No services detected</p>"
+                            }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+
+<script>
+// Architecture Layer Chart
+const layerData = ${architectureAnalysis.layeredArchitecture.layers.let { layers ->
+    val labels = layers.map { it.name }
+    val data = layers.map { it.classes.size }
+    val colors = listOf("#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40")
+    "{ labels: [${labels.joinToString(",") { "'$it'" }}], data: [${data.joinToString(",")}], colors: [${colors.take(labels.size).joinToString(",") { "'$it'" }}] }"
+}};
+
+const layerCtx = document.getElementById('layerChart').getContext('2d');
+new Chart(layerCtx, {
+    type: 'bar',
+    data: {
+        labels: layerData.labels,
+        datasets: [{
+            label: 'Classes per Layer',
+            data: layerData.data,
+            backgroundColor: layerData.colors,
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Architecture Layers'
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+
+// DDD Patterns Chart
+const dddData = ${architectureAnalysis.dddPatterns.let { ddd ->
+    val labels = listOf("Entities", "Value Objects", "Services", "Repositories", "Aggregates", "Domain Events")
+    val data = listOf(ddd.entities.size, ddd.valueObjects.size, ddd.services.size, ddd.repositories.size, ddd.aggregates.size, ddd.domainEvents.size)
+    val colors = listOf("#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40")
+    "{ labels: [${labels.joinToString(",") { "'$it'" }}], data: [${data.joinToString(",")}], colors: [${colors.joinToString(",") { "'$it'" }}] }"
+}};
+
+const dddCtx = document.getElementById('dddChart').getContext('2d');
+new Chart(dddCtx, {
+    type: 'doughnut',
+    data: {
+        labels: dddData.labels,
+        datasets: [{
+            data: dddData.data,
+            backgroundColor: dddData.colors,
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            title: {
+                display: true,
+                text: 'DDD Patterns Distribution'
+            }
+        }
+    }
+});
+
+// Simple Dependency Graph Visualization
+const dependencyGraphContainer = document.getElementById('dependencyGraph');
+const nodes = ${architectureAnalysis.dependencyGraph.nodes.let { nodes ->
+    "[${nodes.joinToString(",") { node -> 
+        "{ id: '${node.id}', label: '${node.className}', layer: '${node.layer ?: "unknown"}' }"
+    }}]"
+}};
+
+const edges = ${architectureAnalysis.dependencyGraph.edges.let { edges ->
+    "[${edges.take(50).joinToString(",") { edge -> // Limit to first 50 edges for performance
+        "{ from: '${edge.fromId}', to: '${edge.toId}' }"
+    }}]"
+}};
+
+// Create a simple node-link diagram representation
+dependencyGraphContainer.innerHTML = 
+    '<div class="alert alert-info">' +
+    '<h6>Dependency Graph Summary</h6>' +
+    '<p><strong>Nodes:</strong> ' + nodes.length + ' classes/interfaces</p>' +
+    '<p><strong>Edges:</strong> ' + edges.length + ' dependencies</p>' +
+    '<p><strong>Packages:</strong> ${architectureAnalysis.dependencyGraph.packages.size}</p>' +
+    '<p><em>Note: Full interactive graph visualization requires additional libraries like D3.js or vis.js</em></p>' +
+    '</div>';
 
 <script>
 // LCOM Distribution Chart

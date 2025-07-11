@@ -2116,7 +2116,6 @@ dependencyGraphContainer.innerHTML =
     '<p><em>Note: Full interactive graph visualization requires additional libraries like D3.js or vis.js</em></p>' +
     '</div>';
 
-<script>
 // LCOM Distribution Chart
 const lcomData = ${analyses.map { it.lcom }.let { lcomValues ->
     val histogram = mutableMapOf<Int, Int>()

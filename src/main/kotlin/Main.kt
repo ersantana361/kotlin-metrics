@@ -2108,7 +2108,6 @@ new Chart(dddCtx, {
 });
 
 // D3.js Interactive Dependency Graph Visualization
-const dependencyGraphContainer = document.getElementById('dependencyGraph');
 const graphData = {
     nodes: ${architectureAnalysis.dependencyGraph.nodes.let { nodes ->
         "[${nodes.joinToString(",") { node -> 
@@ -2122,201 +2121,241 @@ const graphData = {
     }}
 };
 
-// Create D3.js force-directed graph
-const width = dependencyGraphContainer.offsetWidth;
-const height = 600;
+// Global variables for D3.js graph
+let dependencyGraphInitialized = false;
+let simulation;
+let svg;
+let tooltip;
 
-// Clear previous content
-dependencyGraphContainer.innerHTML = '';
-
-const svg = d3.select('#dependencyGraph')
-    .append('svg')
-    .attr('width', width)
-    .attr('height', height);
-
-// Create tooltip
-const tooltip = d3.select('body').append('div')
-    .attr('class', 'tooltip')
-    .style('opacity', 0);
-
-// Create force simulation
-const simulation = d3.forceSimulation(graphData.nodes)
-    .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(80))
-    .force('charge', d3.forceManyBody().strength(-300))
-    .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collision', d3.forceCollide().radius(30));
-
-// Add zoom behavior
-const zoom = d3.zoom()
-    .scaleExtent([0.1, 4])
-    .on('zoom', (event) => {
-        g.attr('transform', event.transform);
-    });
-
-svg.call(zoom);
-
-// Create main group for pan/zoom
-const g = svg.append('g');
-
-// Create links
-const link = g.append('g')
-    .selectAll('line')
-    .data(graphData.links)
-    .enter().append('line')
-    .attr('class', 'link')
-    .style('stroke-width', 2);
-
-// Create nodes
-const node = g.append('g')
-    .selectAll('g')
-    .data(graphData.nodes)
-    .enter().append('g')
-    .attr('class', d => 'node ' + d.layer)
-    .call(d3.drag()
-        .on('start', dragstarted)
-        .on('drag', dragged)
-        .on('end', dragended));
-
-// Add circles to nodes
-node.append('circle')
-    .attr('r', 20)
-    .style('fill', d => {
-        switch(d.layer) {
-            case 'presentation': return '#e74c3c';
-            case 'application': return '#f39c12';
-            case 'domain': return '#2ecc71';
-            case 'infrastructure': return '#3498db';
-            default: return '#95a5a6';
-        }
-    });
-
-// Add labels to nodes
-node.append('text')
-    .text(d => d.label)
-    .attr('dy', 5)
-    .style('text-anchor', 'middle')
-    .style('font-size', '10px')
-    .style('fill', 'white');
-
-// Add hover effects
-node.on('mouseover', function(event, d) {
-    tooltip.transition()
-        .duration(200)
-        .style('opacity', .9);
-    tooltip.html(d.fullName + '<br/>Layer: ' + d.layer)
-        .style('left', (event.pageX + 10) + 'px')
-        .style('top', (event.pageY - 28) + 'px');
-})
-.on('mouseout', function() {
-    tooltip.transition()
-        .duration(500)
+function initializeDependencyGraph() {
+    if (dependencyGraphInitialized) return;
+    
+    const dependencyGraphContainer = document.getElementById('dependencyGraph');
+    if (!dependencyGraphContainer) {
+        console.error('Dependency graph container not found');
+        return;
+    }
+    
+    // Get container dimensions
+    const containerRect = dependencyGraphContainer.getBoundingClientRect();
+    const width = containerRect.width > 0 ? containerRect.width : 800;
+    const height = 600;
+    
+    // Clear previous content
+    dependencyGraphContainer.innerHTML = '';
+    
+    // Create SVG
+    svg = d3.select('#dependencyGraph')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+    
+    // Create tooltip
+    tooltip = d3.select('body').append('div')
+        .attr('class', 'tooltip')
         .style('opacity', 0);
-});
-
-// Update positions on tick
-simulation.on('tick', () => {
-    link
-        .attr('x1', d => d.source.x)
-        .attr('y1', d => d.source.y)
-        .attr('x2', d => d.target.x)
-        .attr('y2', d => d.target.y);
-
-    node
-        .attr('transform', d => 'translate(' + d.x + ',' + d.y + ')');
-});
-
-// Drag functions
-function dragstarted(event, d) {
-    if (!event.active) simulation.alphaTarget(0.3).restart();
-    d.fx = d.x;
-    d.fy = d.y;
-}
-
-function dragged(event, d) {
-    d.fx = event.x;
-    d.fy = event.y;
-}
-
-function dragended(event, d) {
-    if (!event.active) simulation.alphaTarget(0);
-    d.fx = null;
-    d.fy = null;
-}
-
-// Add legend
-const legend = svg.append('g')
-    .attr('class', 'legend')
-    .attr('transform', 'translate(20, 20)');
-
-const layers = ['presentation', 'application', 'domain', 'infrastructure', 'unknown'];
-const colors = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#95a5a6'];
-
-layers.forEach((layer, i) => {
-    const legendRow = legend.append('g')
-        .attr('transform', 'translate(0, ' + (i * 20) + ')');
     
-    legendRow.append('circle')
-        .attr('r', 8)
-        .style('fill', colors[i]);
+    // Create force simulation
+    simulation = d3.forceSimulation(graphData.nodes)
+        .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(80))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(30));
     
-    legendRow.append('text')
-        .attr('x', 15)
-        .attr('y', 5)
+    // Add zoom behavior
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on('zoom', (event) => {
+            g.attr('transform', event.transform);
+        });
+    
+    svg.call(zoom);
+    
+    // Create main group for pan/zoom
+    const g = svg.append('g');
+    
+    // Create links
+    const link = g.append('g')
+        .selectAll('line')
+        .data(graphData.links)
+        .enter().append('line')
+        .attr('class', 'link')
+        .style('stroke-width', 2);
+    
+    // Create nodes
+    const node = g.append('g')
+        .selectAll('g')
+        .data(graphData.nodes)
+        .enter().append('g')
+        .attr('class', d => 'node ' + d.layer)
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended));
+    
+    // Add circles to nodes
+    node.append('circle')
+        .attr('r', 20)
+        .style('fill', d => {
+            switch(d.layer) {
+                case 'presentation': return '#e74c3c';
+                case 'application': return '#f39c12';
+                case 'domain': return '#2ecc71';
+                case 'infrastructure': return '#3498db';
+                default: return '#95a5a6';
+            }
+        });
+    
+    // Add labels to nodes
+    node.append('text')
+        .text(d => d.label)
+        .attr('dy', 5)
+        .style('text-anchor', 'middle')
+        .style('font-size', '10px')
+        .style('fill', 'white');
+    
+    // Add hover effects
+    node.on('mouseover', function(event, d) {
+        tooltip.transition()
+            .duration(200)
+            .style('opacity', .9);
+        tooltip.html(d.fullName + '<br/>Layer: ' + d.layer)
+            .style('left', (event.pageX + 10) + 'px')
+            .style('top', (event.pageY - 28) + 'px');
+    })
+    .on('mouseout', function() {
+        tooltip.transition()
+            .duration(500)
+            .style('opacity', 0);
+    });
+    
+    // Update positions on tick
+    simulation.on('tick', () => {
+        link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+    
+        node
+            .attr('transform', d => 'translate(' + d.x + ',' + d.y + ')');
+    });
+    
+    // Drag functions
+    function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+    
+    function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+    
+    function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+    
+    // Add legend
+    const legend = svg.append('g')
+        .attr('class', 'legend')
+        .attr('transform', 'translate(20, 20)');
+    
+    const layers = ['presentation', 'application', 'domain', 'infrastructure', 'unknown'];
+    const colors = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#95a5a6'];
+    
+    layers.forEach((layer, i) => {
+        const legendRow = legend.append('g')
+            .attr('transform', 'translate(0, ' + (i * 20) + ')');
+        
+        legendRow.append('circle')
+            .attr('r', 8)
+            .style('fill', colors[i]);
+        
+        legendRow.append('text')
+            .attr('x', 15)
+            .attr('y', 5)
+            .style('font-size', '12px')
+            .text(layer.charAt(0).toUpperCase() + layer.slice(1));
+    });
+    
+    // Add summary info
+    const summaryInfo = svg.append('g')
+        .attr('class', 'summary-info')
+        .attr('transform', 'translate(20, ' + (height - 80) + ')');
+    
+    summaryInfo.append('text')
+        .attr('y', 0)
         .style('font-size', '12px')
-        .text(layer.charAt(0).toUpperCase() + layer.slice(1));
+        .style('font-weight', 'bold')
+        .text('Graph Summary:');
+    
+    summaryInfo.append('text')
+        .attr('y', 20)
+        .style('font-size', '11px')
+        .text('Nodes: ' + graphData.nodes.length + ' classes/interfaces');
+    
+    summaryInfo.append('text')
+        .attr('y', 35)
+        .style('font-size', '11px')
+        .text('Edges: ' + graphData.links.length + ' dependencies');
+    
+    summaryInfo.append('text')
+        .attr('y', 50)
+        .style('font-size', '11px')
+        .text('Packages: ${architectureAnalysis.dependencyGraph.packages.size}');
+    
+    // Add controls
+    const controls = svg.append('g')
+        .attr('class', 'controls')
+        .attr('transform', 'translate(' + (width - 150) + ', 20)');
+    
+    controls.append('text')
+        .attr('y', 0)
+        .style('font-size', '12px')
+        .style('font-weight', 'bold')
+        .text('Controls:');
+    
+    controls.append('text')
+        .attr('y', 20)
+        .style('font-size', '10px')
+        .text('• Drag nodes to move');
+    
+    controls.append('text')
+        .attr('y', 35)
+        .style('font-size', '10px')
+        .text('• Scroll to zoom');
+    
+    controls.append('text')
+        .attr('y', 50)
+        .style('font-size', '10px')
+        .text('• Hover for details');
+    
+    dependencyGraphInitialized = true;
+}
+
+// Initialize the dependency graph when the Architecture tab is shown
+document.addEventListener('DOMContentLoaded', function() {
+    const architectureTab = document.getElementById('architecture-tab');
+    if (architectureTab) {
+        architectureTab.addEventListener('shown.bs.tab', function() {
+            setTimeout(() => {
+                initializeDependencyGraph();
+            }, 100); // Small delay to ensure tab is fully rendered
+        });
+    }
+    
+    // Also initialize if the Architecture tab is already active
+    const architectureTabPane = document.getElementById('architecture');
+    if (architectureTabPane && architectureTabPane.classList.contains('active')) {
+        setTimeout(() => {
+            initializeDependencyGraph();
+        }, 100);
+    }
 });
-
-// Add summary info
-const summaryInfo = svg.append('g')
-    .attr('class', 'summary-info')
-    .attr('transform', 'translate(20, ' + (height - 80) + ')');
-
-summaryInfo.append('text')
-    .attr('y', 0)
-    .style('font-size', '12px')
-    .style('font-weight', 'bold')
-    .text('Graph Summary:');
-
-summaryInfo.append('text')
-    .attr('y', 20)
-    .style('font-size', '11px')
-    .text('Nodes: ' + graphData.nodes.length + ' classes/interfaces');
-
-summaryInfo.append('text')
-    .attr('y', 35)
-    .style('font-size', '11px')
-    .text('Edges: ' + graphData.links.length + ' dependencies');
-
-summaryInfo.append('text')
-    .attr('y', 50)
-    .style('font-size', '11px')
-    .text('Packages: ${architectureAnalysis.dependencyGraph.packages.size}');
-
-// Add controls
-const controls = svg.append('g')
-    .attr('class', 'controls')
-    .attr('transform', 'translate(' + (width - 150) + ', 20)');
-
-controls.append('text')
-    .attr('y', 0)
-    .style('font-size', '12px')
-    .style('font-weight', 'bold')
-    .text('Controls:');
-
-controls.append('text')
-    .attr('y', 20)
-    .style('font-size', '10px')
-    .text('• Drag nodes to move');
-
-controls.append('text')
-    .attr('y', 35)
-    .style('font-size', '10px')
-    .text('• Scroll to zoom');
-
-controls.append('text')
-    .attr('y', 50)
-    .style('font-size', '10px')
-    .text('• Hover for details');
 
 // LCOM Distribution Chart
 const lcomData = ${analyses.map { it.lcom }.let { lcomValues ->

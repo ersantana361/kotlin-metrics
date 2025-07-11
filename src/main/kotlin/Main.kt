@@ -541,11 +541,87 @@ fun analyzeDddPatterns(ktFiles: List<KtFile>, classAnalyses: List<ClassAnalysis>
     )
 }
 
+// Helper functions for better DDD pattern detection
+fun isTestClass(className: String): Boolean {
+    return className.endsWith("Test") || className.endsWith("Tests") || 
+           className.contains("Test") || className.contains("Mock") || 
+           className.contains("Spec") || className.contains("IT") ||
+           className.endsWith("UnitTest") || className.endsWith("IntegrationTest") ||
+           className.endsWith("MvcTest")
+}
+
+fun isUtilityClass(className: String): Boolean {
+    return className.endsWith("Util") || className.endsWith("Utils") || 
+           className.endsWith("Helper") || className.endsWith("Constants") ||
+           className.endsWith("Config") || className.endsWith("Configuration")
+}
+
+fun isDtoClass(className: String, classOrObject: KtClassOrObject): Boolean {
+    if (className.endsWith("Dto") || className.endsWith("DTO") || 
+        className.endsWith("Request") || className.endsWith("Response") ||
+        className.endsWith("Payload") || className.endsWith("Data")) {
+        return true
+    }
+    
+    // Check if it's a data class with no business logic
+    if (classOrObject is KtClass && classOrObject.isData()) {
+        val methods = classOrObject.body?.functions ?: emptyList()
+        val businessMethods = methods.filter { method ->
+            val name = method.name?.lowercase() ?: ""
+            !name.contains("equals") && !name.contains("hashcode") && !name.contains("tostring") &&
+            !name.contains("copy") && !name.contains("component")
+        }
+        return businessMethods.isEmpty()
+    }
+    
+    return false
+}
+
+fun isControllerClass(className: String): Boolean {
+    return className.endsWith("Controller") || className.endsWith("Endpoint") ||
+           className.endsWith("Resource") || className.endsWith("Handler") ||
+           className.contains("Controller")
+}
+
+fun isServiceClass(className: String): Boolean {
+    return className.endsWith("Service") || className.endsWith("Manager") ||
+           className.endsWith("Provider") || className.endsWith("Factory") ||
+           className.endsWith("Builder") || className.endsWith("Processor")
+}
+
+fun isRepositoryClass(className: String): Boolean {
+    return className.endsWith("Repository") || className.endsWith("DAO") ||
+           className.endsWith("DataAccess") || className.contains("Repository")
+}
+
+fun hasBusinessLogic(classOrObject: KtClassOrObject): Boolean {
+    val methods = classOrObject.body?.functions ?: emptyList()
+    val businessMethods = methods.filter { method ->
+        val name = method.name?.lowercase() ?: ""
+        !name.contains("equals") && !name.contains("hashcode") && !name.contains("tostring") &&
+        !name.contains("copy") && !name.contains("component") && !name.contains("get") &&
+        !name.contains("set") && method.bodyExpression != null
+    }
+    return businessMethods.isNotEmpty()
+}
+
+fun isInDomainPackage(fileName: String): Boolean {
+    return fileName.contains("/domain/") || fileName.contains("\\domain\\") ||
+           fileName.contains("/entity/") || fileName.contains("\\entity\\") ||
+           fileName.contains("/model/") || fileName.contains("\\model\\")
+}
+
 fun analyzeEntity(classOrObject: KtClassOrObject, className: String, fileName: String): DddEntity {
     var confidence = 0.0
     var hasUniqueId = false
     var isMutable = false
     val idFields = mutableListOf<String>()
+    
+    // Early exit for non-entity classes
+    if (isTestClass(className) || isUtilityClass(className) || isDtoClass(className, classOrObject) || 
+        isControllerClass(className) || isServiceClass(className) || isRepositoryClass(className)) {
+        return DddEntity(className, fileName, false, false, emptyList(), 0.0)
+    }
     
     val properties = classOrObject.declarations.filterIsInstance<KtProperty>()
     
@@ -589,6 +665,21 @@ fun analyzeEntity(classOrObject: KtClassOrObject, className: String, fileName: S
     
     if (hasLifecycleMethods) {
         confidence += 0.2
+    }
+    
+    // Check for business logic
+    if (hasBusinessLogic(classOrObject)) {
+        confidence += 0.3
+    }
+    
+    // Check package structure
+    if (isInDomainPackage(fileName)) {
+        confidence += 0.2
+    }
+    
+    // Entities should have both ID and some business logic or lifecycle methods
+    if (!hasUniqueId && !hasLifecycleMethods && !hasBusinessLogic(classOrObject)) {
+        confidence = 0.0
     }
     
     return DddEntity(
@@ -668,6 +759,12 @@ fun analyzeService(classOrObject: KtClassOrObject, className: String, fileName: 
     var hasDomainLogic = false
     val methods = mutableListOf<String>()
     
+    // Early exit for non-service classes
+    if (isTestClass(className) || isDtoClass(className, classOrObject) || 
+        isControllerClass(className) || isRepositoryClass(className)) {
+        return DddService(className, fileName, false, false, emptyList(), 0.0)
+    }
+    
     val classProperties = classOrObject.declarations.filterIsInstance<KtProperty>()
     val classMethods = classOrObject.body?.functions ?: emptyList()
     
@@ -677,9 +774,11 @@ fun analyzeService(classOrObject: KtClassOrObject, className: String, fileName: 
         confidence += 0.3
     }
     
-    // Check class name patterns
-    if (className.endsWith("Service") || className.endsWith("Manager") || className.endsWith("Handler")) {
-        confidence += 0.3
+    // Check class name patterns - be more specific for services
+    if (className.endsWith("Service") && !className.endsWith("Test")) {
+        confidence += 0.4
+    } else if (className.endsWith("Manager") || className.endsWith("Handler")) {
+        confidence += 0.2
     }
     
     classMethods.forEach { method ->
@@ -689,7 +788,8 @@ fun analyzeService(classOrObject: KtClassOrObject, className: String, fileName: 
         // Check for domain logic patterns
         if (methodName.contains("calculate") || methodName.contains("validate") || 
             methodName.contains("process") || methodName.contains("handle") ||
-            methodName.contains("execute") || methodName.contains("apply")) {
+            methodName.contains("execute") || methodName.contains("apply") ||
+            methodName.contains("transform") || methodName.contains("convert")) {
             hasDomainLogic = true
             confidence += 0.1
         }
@@ -704,6 +804,17 @@ fun analyzeService(classOrObject: KtClassOrObject, className: String, fileName: 
     val constructor = classOrObject.primaryConstructor
     if (constructor != null && constructor.valueParameters.isNotEmpty()) {
         confidence += 0.2
+    }
+    
+    // Check package structure
+    if (fileName.contains("/service/") || fileName.contains("\\service\\") ||
+        fileName.contains("/domain/") || fileName.contains("\\domain\\")) {
+        confidence += 0.2
+    }
+    
+    // Services should have methods and be stateless
+    if (classMethods.isEmpty() || !isStateless) {
+        confidence *= 0.5
     }
     
     return DddService(
@@ -722,6 +833,12 @@ fun analyzeRepository(classOrObject: KtClassOrObject, className: String, fileNam
     var hasDataAccess = false
     val crudMethods = mutableListOf<String>()
     
+    // Early exit for non-repository classes
+    if (isTestClass(className) || isDtoClass(className, classOrObject) || 
+        isControllerClass(className) || isServiceClass(className)) {
+        return DddRepository(className, fileName, false, false, emptyList(), 0.0)
+    }
+    
     val methods = classOrObject.body?.functions ?: emptyList()
     
     // Check if it's an interface
@@ -731,8 +848,10 @@ fun analyzeRepository(classOrObject: KtClassOrObject, className: String, fileNam
     }
     
     // Check class name patterns
-    if (className.endsWith("Repository") || className.endsWith("DAO") || className.endsWith("DataAccess")) {
+    if (className.endsWith("Repository") && !className.endsWith("Test")) {
         confidence += 0.4
+    } else if (className.endsWith("DAO") || className.endsWith("DataAccess")) {
+        confidence += 0.3
     }
     
     // Check for CRUD methods
@@ -757,6 +876,18 @@ fun analyzeRepository(classOrObject: KtClassOrObject, className: String, fileNam
     
     if (hasCollectionMethods) {
         confidence += 0.2
+    }
+    
+    // Check package structure
+    if (fileName.contains("/repository/") || fileName.contains("\\repository\\") ||
+        fileName.contains("/dao/") || fileName.contains("\\dao\\") ||
+        fileName.contains("/data/") || fileName.contains("\\data\\")) {
+        confidence += 0.2
+    }
+    
+    // Repositories should have CRUD methods
+    if (crudMethods.isEmpty()) {
+        confidence *= 0.3
     }
     
     return DddRepository(

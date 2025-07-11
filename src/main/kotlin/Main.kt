@@ -577,21 +577,93 @@ fun isDtoClass(className: String, classOrObject: KtClassOrObject): Boolean {
     return false
 }
 
-fun isControllerClass(className: String): Boolean {
+fun hasSpringAnnotation(classOrObject: KtClassOrObject, annotationName: String): Boolean {
+    val annotations = classOrObject.annotationEntries
+    return annotations.any { annotation ->
+        val shortName = annotation.shortName?.asString()
+        val fullName = annotation.typeReference?.text
+        
+        // Check for short name match (e.g., @Controller)
+        shortName == annotationName ||
+        // Check for Spring stereotype annotations
+        fullName?.endsWith("stereotype.$annotationName") == true ||
+        fullName?.endsWith("web.bind.annotation.$annotationName") == true ||
+        fullName?.endsWith("data.jpa.repository.$annotationName") == true ||
+        // Check for JPA/Hibernate annotations
+        fullName?.endsWith("persistence.$annotationName") == true ||
+        fullName?.endsWith("jpa.$annotationName") == true ||
+        fullName?.endsWith("hibernate.annotations.$annotationName") == true ||
+        // Check for Spring Data annotations
+        fullName?.endsWith("data.repository.$annotationName") == true ||
+        fullName?.endsWith("repository.$annotationName") == true ||
+        // Check for Spring Boot annotations
+        fullName?.endsWith("boot.autoconfigure.$annotationName") == true ||
+        fullName?.endsWith("transaction.annotation.$annotationName") == true
+    }
+}
+
+fun isControllerClass(className: String, classOrObject: KtClassOrObject? = null): Boolean {
+    // Check Spring annotations first
+    if (classOrObject != null) {
+        if (hasSpringAnnotation(classOrObject, "Controller") || 
+            hasSpringAnnotation(classOrObject, "RestController") ||
+            hasSpringAnnotation(classOrObject, "RequestMapping")) {
+            return true
+        }
+    }
+    
+    // Fallback to naming patterns
     return className.endsWith("Controller") || className.endsWith("Endpoint") ||
            className.endsWith("Resource") || className.endsWith("Handler") ||
            className.contains("Controller")
 }
 
-fun isServiceClass(className: String): Boolean {
+fun isServiceClass(className: String, classOrObject: KtClassOrObject? = null): Boolean {
+    // Check Spring annotations first
+    if (classOrObject != null) {
+        if (hasSpringAnnotation(classOrObject, "Service") || 
+            hasSpringAnnotation(classOrObject, "Component") ||
+            hasSpringAnnotation(classOrObject, "Transactional")) {
+            return true
+        }
+    }
+    
+    // Fallback to naming patterns
     return className.endsWith("Service") || className.endsWith("Manager") ||
            className.endsWith("Provider") || className.endsWith("Factory") ||
            className.endsWith("Builder") || className.endsWith("Processor")
 }
 
-fun isRepositoryClass(className: String): Boolean {
+fun isRepositoryClass(className: String, classOrObject: KtClassOrObject? = null): Boolean {
+    // Check Spring annotations first
+    if (classOrObject != null) {
+        if (hasSpringAnnotation(classOrObject, "Repository") || 
+            hasSpringAnnotation(classOrObject, "Component") ||
+            hasSpringAnnotation(classOrObject, "JpaRepository") ||
+            hasSpringAnnotation(classOrObject, "CrudRepository")) {
+            return true
+        }
+    }
+    
+    // Fallback to naming patterns
     return className.endsWith("Repository") || className.endsWith("DAO") ||
            className.endsWith("DataAccess") || className.contains("Repository")
+}
+
+fun isEntityClass(className: String, classOrObject: KtClassOrObject? = null): Boolean {
+    // Check JPA/Hibernate annotations first
+    if (classOrObject != null) {
+        if (hasSpringAnnotation(classOrObject, "Entity") || 
+            hasSpringAnnotation(classOrObject, "Table") ||
+            hasSpringAnnotation(classOrObject, "Embeddable") ||
+            hasSpringAnnotation(classOrObject, "MappedSuperclass")) {
+            return true
+        }
+    }
+    
+    // Fallback to naming patterns
+    return className.endsWith("Entity") || className.endsWith("Model") ||
+           className.endsWith("Aggregate") || className.endsWith("Root")
 }
 
 fun hasBusinessLogic(classOrObject: KtClassOrObject): Boolean {
@@ -619,7 +691,8 @@ fun analyzeEntity(classOrObject: KtClassOrObject, className: String, fileName: S
     
     // Early exit for non-entity classes
     if (isTestClass(className) || isUtilityClass(className) || isDtoClass(className, classOrObject) || 
-        isControllerClass(className) || isServiceClass(className) || isRepositoryClass(className)) {
+        isControllerClass(className, classOrObject) || isServiceClass(className, classOrObject) || 
+        isRepositoryClass(className, classOrObject)) {
         return DddEntity(className, fileName, false, false, emptyList(), 0.0)
     }
     
@@ -649,6 +722,17 @@ fun analyzeEntity(classOrObject: KtClassOrObject, className: String, fileName: S
     
     if (hasEquals && hasHashCode) {
         confidence += 0.3
+    }
+    
+    // Check Spring/JPA annotations
+    if (hasSpringAnnotation(classOrObject, "Entity")) {
+        confidence += 0.5
+    }
+    if (hasSpringAnnotation(classOrObject, "Table")) {
+        confidence += 0.3
+    }
+    if (hasSpringAnnotation(classOrObject, "Embeddable")) {
+        confidence += 0.4
     }
     
     // Check class name patterns
@@ -761,7 +845,7 @@ fun analyzeService(classOrObject: KtClassOrObject, className: String, fileName: 
     
     // Early exit for non-service classes
     if (isTestClass(className) || isDtoClass(className, classOrObject) || 
-        isControllerClass(className) || isRepositoryClass(className)) {
+        isControllerClass(className, classOrObject) || isRepositoryClass(className, classOrObject)) {
         return DddService(className, fileName, false, false, emptyList(), 0.0)
     }
     
@@ -771,6 +855,17 @@ fun analyzeService(classOrObject: KtClassOrObject, className: String, fileName: 
     // Check for statelessness (no or minimal state)
     if (classProperties.isEmpty() || classProperties.all { it.name?.lowercase()?.contains("repository") == true }) {
         isStateless = true
+        confidence += 0.3
+    }
+    
+    // Check Spring annotations first
+    if (hasSpringAnnotation(classOrObject, "Service")) {
+        confidence += 0.6
+    }
+    if (hasSpringAnnotation(classOrObject, "Component")) {
+        confidence += 0.4
+    }
+    if (hasSpringAnnotation(classOrObject, "Transactional")) {
         confidence += 0.3
     }
     
@@ -835,7 +930,7 @@ fun analyzeRepository(classOrObject: KtClassOrObject, className: String, fileNam
     
     // Early exit for non-repository classes
     if (isTestClass(className) || isDtoClass(className, classOrObject) || 
-        isControllerClass(className) || isServiceClass(className)) {
+        isControllerClass(className, classOrObject) || isServiceClass(className, classOrObject)) {
         return DddRepository(className, fileName, false, false, emptyList(), 0.0)
     }
     
@@ -845,6 +940,14 @@ fun analyzeRepository(classOrObject: KtClassOrObject, className: String, fileNam
     if (classOrObject is KtClass && classOrObject.isInterface()) {
         isInterface = true
         confidence += 0.3
+    }
+    
+    // Check Spring annotations first
+    if (hasSpringAnnotation(classOrObject, "Repository")) {
+        confidence += 0.6
+    }
+    if (hasSpringAnnotation(classOrObject, "Component")) {
+        confidence += 0.4
     }
     
     // Check class name patterns

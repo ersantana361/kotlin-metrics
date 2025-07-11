@@ -10,6 +10,13 @@ import org.jetbrains.kotlin.com.intellij.openapi.Disposable
 import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
 import org.jetbrains.kotlin.com.intellij.psi.PsiFileFactory
 import org.jetbrains.kotlin.psi.KtFile
+import com.github.javaparser.StaticJavaParser
+import com.github.javaparser.ast.CompilationUnit
+import com.github.javaparser.ast.body.*
+import com.github.javaparser.ast.expr.*
+import com.github.javaparser.ast.stmt.*
+import com.github.javaparser.ast.type.*
+import com.github.javaparser.ast.visitor.VoidVisitorAdapter
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -153,7 +160,8 @@ data class DependencyNode(
     val fileName: String,
     val packageName: String,
     val nodeType: NodeType,
-    val layer: String?
+    val layer: String?,
+    val language: String = "Kotlin"
 )
 
 data class DependencyEdge(
@@ -202,17 +210,31 @@ enum class CycleSeverity {
 
 fun main() {
     val currentDir = File(".")
-    println("Analyzing Kotlin files in: ${currentDir.absolutePath}")
+    println("Analyzing Kotlin and Java files in: ${currentDir.absolutePath}")
     
     val target = currentDir
 
-    val files = if (target.isDirectory()) {
+    val kotlinFiles = if (target.isDirectory()) {
         target.walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
             .toList()
-    } else {
+    } else if (target.extension == "kt") {
         listOf(target)
+    } else {
+        emptyList()
     }
+    
+    val javaFiles = if (target.isDirectory()) {
+        target.walkTopDown()
+            .filter { it.isFile && it.extension == "java" }
+            .toList()
+    } else if (target.extension == "java") {
+        listOf(target)
+    } else {
+        emptyList()
+    }
+
+    println("Found ${kotlinFiles.size} Kotlin files and ${javaFiles.size} Java files")
 
     val disposable: Disposable = Disposer.newDisposable()
     val configuration = CompilerConfiguration()
@@ -227,7 +249,8 @@ fun main() {
 
     val allKtFiles = mutableListOf<KtFile>()
     
-    for (file in files) {
+    // Process Kotlin files
+    for (file in kotlinFiles) {
         val ktFile = psiFileFactory.createFileFromText(
             file.name,
             KotlinLanguage.INSTANCE,
@@ -240,8 +263,25 @@ fun main() {
             analyses.add(analysis)
         }
     }
+    
+    // Process Java files
+    for (file in javaFiles) {
+        try {
+            val cu = StaticJavaParser.parse(file)
+            cu.findAll(ClassOrInterfaceDeclaration::class.java).forEach { classDecl ->
+                val analysis = analyzeJavaClass(classDecl, file.name)
+                analyses.add(analysis)
+            }
+        } catch (e: Exception) {
+            println("Error parsing Java file ${file.name}: ${e.message}")
+        }
+    }
 
-    val architectureAnalysis = analyzeArchitecture(allKtFiles, analyses)
+    val architectureAnalysis = if (javaFiles.isNotEmpty()) {
+        analyzeArchitectureWithJava(allKtFiles, javaFiles, analyses)
+    } else {
+        analyzeArchitecture(allKtFiles, analyses)
+    }
     generateSummary(analyses, architectureAnalysis)
     generateHtmlReport(analyses, architectureAnalysis)
 
@@ -257,6 +297,667 @@ fun analyzeArchitecture(ktFiles: List<KtFile>, classAnalyses: List<ClassAnalysis
         dddPatterns = dddPatterns,
         layeredArchitecture = layeredArchitecture,
         dependencyGraph = dependencyGraph
+    )
+}
+
+// Extended architecture analysis supporting both Kotlin and Java
+fun analyzeArchitectureWithJava(ktFiles: List<KtFile>, javaFiles: List<File>, classAnalyses: List<ClassAnalysis>): ArchitectureAnalysis {
+    val dependencyGraph = buildMixedDependencyGraph(ktFiles, javaFiles)
+    val dddPatterns = analyzeMixedDddPatterns(ktFiles, javaFiles, classAnalyses)
+    val layeredArchitecture = analyzeMixedLayeredArchitecture(ktFiles, javaFiles, dependencyGraph)
+    
+    return ArchitectureAnalysis(
+        dddPatterns = dddPatterns,
+        layeredArchitecture = layeredArchitecture,
+        dependencyGraph = dependencyGraph
+    )
+}
+
+// Mixed language analysis functions
+fun buildMixedDependencyGraph(ktFiles: List<KtFile>, javaFiles: List<File>): DependencyGraph {
+    val nodes = mutableListOf<DependencyNode>()
+    val edges = mutableListOf<DependencyEdge>()
+    val packages = mutableMapOf<String, MutableList<String>>()
+    
+    // Process Kotlin files
+    for (ktFile in ktFiles) {
+        val packageName = ktFile.packageFqName.asString()
+        
+        for (classOrObject in ktFile.declarations.filterIsInstance<KtClassOrObject>()) {
+            val className = classOrObject.name ?: "Anonymous"
+            val nodeType = when {
+                classOrObject is KtClass && classOrObject.isInterface() -> NodeType.INTERFACE
+                classOrObject is KtClass && classOrObject.isAbstract() -> NodeType.ABSTRACT_CLASS
+                classOrObject is KtObjectDeclaration -> NodeType.OBJECT
+                classOrObject is KtEnumEntry -> NodeType.ENUM
+                else -> NodeType.CLASS
+            }
+            
+            val node = DependencyNode(
+                id = "$packageName.$className",
+                className = className,
+                fileName = ktFile.name,
+                packageName = packageName,
+                nodeType = nodeType,
+                layer = inferLayer(packageName, className),
+                language = "Kotlin"
+            )
+            nodes.add(node)
+            
+            packages.getOrPut(packageName) { mutableListOf() }.add(className)
+        }
+    }
+    
+    // Process Java files
+    for (javaFile in javaFiles) {
+        try {
+            val cu = StaticJavaParser.parse(javaFile)
+            val packageName = cu.packageDeclaration.map { it.nameAsString }.orElse("")
+            
+            cu.findAll(ClassOrInterfaceDeclaration::class.java).forEach { classDecl ->
+                val className = classDecl.nameAsString
+                val nodeType = when {
+                    classDecl.isInterface -> NodeType.INTERFACE
+                    classDecl.isAbstract -> NodeType.ABSTRACT_CLASS
+                    else -> NodeType.CLASS
+                }
+                
+                val node = DependencyNode(
+                    id = "$packageName.$className",
+                    className = className,
+                    fileName = javaFile.name,
+                    packageName = packageName,
+                    nodeType = nodeType,
+                    layer = inferLayer(packageName, className),
+                    language = "Java"
+                )
+                nodes.add(node)
+                
+                packages.getOrPut(packageName) { mutableListOf() }.add(className)
+            }
+            
+            cu.findAll(EnumDeclaration::class.java).forEach { enumDecl ->
+                val className = enumDecl.nameAsString
+                val node = DependencyNode(
+                    id = "$packageName.$className",
+                    className = className,
+                    fileName = javaFile.name,
+                    packageName = packageName,
+                    nodeType = NodeType.ENUM,
+                    layer = inferLayer(packageName, className),
+                    language = "Java"
+                )
+                nodes.add(node)
+                packages.getOrPut(packageName) { mutableListOf() }.add(className)
+            }
+        } catch (e: Exception) {
+            println("Error processing Java file ${javaFile.name}: ${e.message}")
+        }
+    }
+    
+    // Build edges for Kotlin files (existing logic)
+    for (ktFile in ktFiles) {
+        val packageName = ktFile.packageFqName.asString()
+        for (classOrObject in ktFile.declarations.filterIsInstance<KtClassOrObject>()) {
+            val fromClassName = classOrObject.name ?: "Anonymous"
+            val fromNodeId = "$packageName.$fromClassName"
+            
+            // Find references to other classes
+            classOrObject.accept(object : KtTreeVisitorVoid() {
+                override fun visitUserType(type: KtUserType) {
+                    val referencedTypeName = type.referencedName
+                    if (referencedTypeName != null) {
+                        // Find matching node
+                        val toNode = nodes.find { it.className == referencedTypeName }
+                        if (toNode != null && toNode.id != fromNodeId) {
+                            val edge = DependencyEdge(
+                                fromId = fromNodeId,
+                                toId = toNode.id,
+                                dependencyType = DependencyType.USAGE,
+                                strength = 1
+                            )
+                            if (!edges.contains(edge)) {
+                                edges.add(edge)
+                            }
+                        }
+                    }
+                    super.visitUserType(type)
+                }
+            })
+        }
+    }
+    
+    // Build edges for Java files
+    for (javaFile in javaFiles) {
+        try {
+            val cu = StaticJavaParser.parse(javaFile)
+            val packageName = cu.packageDeclaration.map { it.nameAsString }.orElse("")
+            
+            cu.findAll(ClassOrInterfaceDeclaration::class.java).forEach { classDecl ->
+                val fromClassName = classDecl.nameAsString
+                val fromNodeId = "$packageName.$fromClassName"
+                
+                // Find type references
+                classDecl.findAll(ClassOrInterfaceType::class.java).forEach { typeRef ->
+                    val referencedTypeName = typeRef.nameAsString
+                    val toNode = nodes.find { it.className == referencedTypeName }
+                    if (toNode != null && toNode.id != fromNodeId) {
+                        val edge = DependencyEdge(
+                            fromId = fromNodeId,
+                            toId = toNode.id,
+                            dependencyType = DependencyType.USAGE,
+                            strength = 1
+                        )
+                        if (!edges.contains(edge)) {
+                            edges.add(edge)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            println("Error processing Java dependencies for ${javaFile.name}: ${e.message}")
+        }
+    }
+    
+    val cycles = detectCycles(nodes, edges)
+    val packageAnalyses = packages.map { (packageName, classes) ->
+        PackageAnalysis(
+            packageName = packageName,
+            classes = classes,
+            dependencies = edges.filter { it.fromId.startsWith("$packageName.") }.map { it.toId },
+            layer = inferLayer(packageName, ""),
+            cohesion = 0.0
+        )
+    }
+    
+    return DependencyGraph(
+        nodes = nodes,
+        edges = edges,
+        cycles = cycles,
+        packages = packageAnalyses
+    )
+}
+
+fun analyzeMixedDddPatterns(ktFiles: List<KtFile>, javaFiles: List<File>, classAnalyses: List<ClassAnalysis>): DddPatternAnalysis {
+    val entities = mutableListOf<DddEntity>()
+    val valueObjects = mutableListOf<DddValueObject>()
+    val services = mutableListOf<DddService>()
+    val repositories = mutableListOf<DddRepository>()
+    val aggregates = mutableListOf<DddAggregate>()
+    val domainEvents = mutableListOf<DddDomainEvent>()
+    
+    // Analyze Kotlin files (existing logic)
+    for (ktFile in ktFiles) {
+        for (classOrObject in ktFile.declarations.filterIsInstance<KtClassOrObject>()) {
+            val className = classOrObject.name ?: "Anonymous"
+            val fileName = ktFile.name
+            
+            // Entity analysis
+            val entityAnalysis = analyzeKotlinEntity(classOrObject, fileName)
+            if (entityAnalysis.confidence > 0.5) {
+                entities.add(entityAnalysis)
+            }
+            
+            // Value Object analysis
+            val valueObjectAnalysis = analyzeKotlinValueObject(classOrObject, fileName)
+            if (valueObjectAnalysis.confidence > 0.5) {
+                valueObjects.add(valueObjectAnalysis)
+            }
+            
+            // Service analysis
+            val serviceAnalysis = analyzeKotlinService(classOrObject, fileName)
+            if (serviceAnalysis.confidence > 0.5) {
+                services.add(serviceAnalysis)
+            }
+            
+            // Repository analysis
+            val repositoryAnalysis = analyzeKotlinRepository(classOrObject, fileName)
+            if (repositoryAnalysis.confidence > 0.5) {
+                repositories.add(repositoryAnalysis)
+            }
+        }
+    }
+    
+    // Analyze Java files
+    for (javaFile in javaFiles) {
+        try {
+            val cu = StaticJavaParser.parse(javaFile)
+            
+            cu.findAll(ClassOrInterfaceDeclaration::class.java).forEach { classDecl ->
+                val className = classDecl.nameAsString
+                val fileName = javaFile.name
+                
+                // Entity analysis
+                val entityAnalysis = analyzeJavaEntity(classDecl, fileName)
+                if (entityAnalysis.confidence > 0.5) {
+                    entities.add(entityAnalysis)
+                }
+                
+                // Value Object analysis
+                val valueObjectAnalysis = analyzeJavaValueObject(classDecl, fileName)
+                if (valueObjectAnalysis.confidence > 0.5) {
+                    valueObjects.add(valueObjectAnalysis)
+                }
+                
+                // Service analysis
+                val serviceAnalysis = analyzeJavaService(classDecl, fileName)
+                if (serviceAnalysis.confidence > 0.5) {
+                    services.add(serviceAnalysis)
+                }
+                
+                // Repository analysis
+                val repositoryAnalysis = analyzeJavaRepository(classDecl, fileName)
+                if (repositoryAnalysis.confidence > 0.5) {
+                    repositories.add(repositoryAnalysis)
+                }
+            }
+        } catch (e: Exception) {
+            println("Error analyzing DDD patterns in Java file ${javaFile.name}: ${e.message}")
+        }
+    }
+    
+    return DddPatternAnalysis(
+        entities = entities,
+        valueObjects = valueObjects,
+        services = services,
+        repositories = repositories,
+        aggregates = aggregates,
+        domainEvents = domainEvents
+    )
+}
+
+fun analyzeMixedLayeredArchitecture(ktFiles: List<KtFile>, javaFiles: List<File>, dependencyGraph: DependencyGraph): LayeredArchitectureAnalysis {
+    val layers = mutableMapOf<String, MutableList<String>>()
+    val dependencies = mutableListOf<LayerDependency>()
+    val violations = mutableListOf<ArchitectureViolation>()
+    
+    // Collect layers from all files
+    for (node in dependencyGraph.nodes) {
+        val layer = node.layer ?: "unknown"
+        layers.getOrPut(layer) { mutableListOf() }.add(node.className)
+    }
+    
+    // Convert to ArchitectureLayer objects
+    val architectureLayers = layers.map { (layerName, classes) ->
+        ArchitectureLayer(
+            name = layerName,
+            type = when (layerName.lowercase()) {
+                "presentation" -> LayerType.PRESENTATION
+                "application" -> LayerType.APPLICATION
+                "domain" -> LayerType.DOMAIN
+                "infrastructure" -> LayerType.INFRASTRUCTURE
+                "data" -> LayerType.DATA
+                else -> LayerType.APPLICATION
+            },
+            packages = emptyList(),
+            classes = classes,
+            level = 0
+        )
+    }
+    
+    // Analyze dependencies between layers
+    for (edge in dependencyGraph.edges) {
+        val fromNode = dependencyGraph.nodes.find { it.id == edge.fromId }
+        val toNode = dependencyGraph.nodes.find { it.id == edge.toId }
+        
+        if (fromNode != null && toNode != null) {
+            val fromLayer = fromNode.layer ?: "unknown"
+            val toLayer = toNode.layer ?: "unknown"
+            
+            if (fromLayer != toLayer) {
+                val dependency = LayerDependency(
+                    fromLayer = fromLayer,
+                    toLayer = toLayer,
+                    dependencyCount = 1,
+                    isValid = true
+                )
+                
+                val existingDep = dependencies.find { it.fromLayer == fromLayer && it.toLayer == toLayer }
+                if (existingDep != null) {
+                    dependencies[dependencies.indexOf(existingDep)] = LayerDependency(
+                        fromLayer = existingDep.fromLayer,
+                        toLayer = existingDep.toLayer,
+                        dependencyCount = existingDep.dependencyCount + 1,
+                        isValid = existingDep.isValid
+                    )
+                } else {
+                    dependencies.add(dependency)
+                }
+            }
+        }
+    }
+    
+    // Detect violations
+    for (dependency in dependencies) {
+        if (!dependency.isValid) {
+            violations.add(ArchitectureViolation(
+                fromClass = dependency.fromLayer,
+                toClass = dependency.toLayer,
+                violationType = ViolationType.LAYER_VIOLATION,
+                suggestion = "Layer '${dependency.fromLayer}' should not depend on '${dependency.toLayer}'"
+            ))
+        }
+    }
+    
+    val pattern = ArchitecturePattern.LAYERED // Simple default for mixed analysis
+    
+    return LayeredArchitectureAnalysis(
+        layers = architectureLayers,
+        dependencies = dependencies,
+        violations = violations,
+        pattern = pattern
+    )
+}
+
+// Java DDD Pattern Analysis Functions
+fun analyzeJavaEntity(classDecl: ClassOrInterfaceDeclaration, fileName: String): DddEntity {
+    var confidence = 0.0
+    val className = classDecl.nameAsString
+    
+    // Check for ID fields
+    val idFields = mutableListOf<String>()
+    val hasIdField = classDecl.fields.any { field ->
+        field.variables.any { variable ->
+            val fieldName = variable.nameAsString.lowercase()
+            val hasIdAnnotation = field.annotations.any { it.nameAsString.contains("Id") }
+            val isIdField = fieldName == "id" || fieldName.endsWith("id") || hasIdAnnotation
+            if (isIdField) {
+                idFields.add(variable.nameAsString)
+            }
+            isIdField
+        }
+    }
+    if (hasIdField) confidence += 0.3
+    
+    // Check for mutability (non-final fields)
+    val hasMutableFields = classDecl.fields.any { !it.isFinal }
+    if (hasMutableFields) confidence += 0.2
+    
+    // Check for equals/hashCode methods
+    val hasEqualsHashCode = classDecl.methods.any { it.nameAsString == "equals" } &&
+                           classDecl.methods.any { it.nameAsString == "hashCode" }
+    if (hasEqualsHashCode) confidence += 0.3
+    
+    // Check naming patterns
+    if (className.endsWith("Entity") || className.endsWith("Aggregate")) confidence += 0.2
+    
+    // Check for JPA annotations
+    val hasJpaAnnotations = classDecl.annotations.any { 
+        it.nameAsString.contains("Entity") || it.nameAsString.contains("Table")
+    }
+    if (hasJpaAnnotations) confidence += 0.3
+    
+    return DddEntity(
+        className = className,
+        fileName = fileName,
+        hasUniqueId = hasIdField,
+        isMutable = hasMutableFields,
+        idFields = idFields,
+        confidence = confidence
+    )
+}
+
+fun analyzeJavaValueObject(classDecl: ClassOrInterfaceDeclaration, fileName: String): DddValueObject {
+    var confidence = 0.0
+    val className = classDecl.nameAsString
+    
+    // Check for immutability (final fields)
+    val isImmutable = classDecl.fields.all { it.isFinal }
+    if (isImmutable) confidence += 0.4
+    
+    // Check for value equality (equals/hashCode methods)
+    val hasValueEquality = classDecl.methods.any { it.nameAsString == "equals" } &&
+                          classDecl.methods.any { it.nameAsString == "hashCode" }
+    if (hasValueEquality) confidence += 0.3
+    
+    // Check naming patterns
+    if (className.endsWith("Value") || className.endsWith("ValueObject")) confidence += 0.2
+    
+    // Check for lack of setters (immutability indicator)
+    val hasSetters = classDecl.methods.any { it.nameAsString.startsWith("set") }
+    if (!hasSetters) confidence += 0.1
+    
+    val properties = classDecl.fields.map { field ->
+        field.variables.first().nameAsString
+    }
+    
+    return DddValueObject(
+        className = className,
+        fileName = fileName,
+        isImmutable = isImmutable,
+        hasValueEquality = hasValueEquality,
+        properties = properties,
+        confidence = confidence
+    )
+}
+
+fun analyzeJavaService(classDecl: ClassOrInterfaceDeclaration, fileName: String): DddService {
+    var confidence = 0.0
+    val className = classDecl.nameAsString
+    
+    // Check for statelessness (no instance fields except dependencies)
+    val isStateless = classDecl.fields.all { field ->
+        field.annotations.any { it.nameAsString.contains("Inject") || it.nameAsString.contains("Autowired") } ||
+        field.isFinal // Final fields are often dependencies
+    }
+    if (isStateless) confidence += 0.3
+    
+    // Check naming patterns
+    if (className.endsWith("Service") || className.endsWith("Handler") || className.contains("Service")) {
+        confidence += 0.3
+    }
+    
+    // Check for business logic methods
+    val businessMethods = classDecl.methods.filter { method ->
+        !method.nameAsString.startsWith("get") && 
+        !method.nameAsString.startsWith("set") &&
+        !method.nameAsString.equals("equals") &&
+        !method.nameAsString.equals("hashCode") &&
+        !method.nameAsString.equals("toString")
+    }
+    val hasDomainLogic = businessMethods.isNotEmpty()
+    if (hasDomainLogic) confidence += 0.2
+    
+    // Check for Spring Service annotation
+    val hasServiceAnnotation = classDecl.annotations.any { 
+        it.nameAsString.contains("Service") || it.nameAsString.contains("Component")
+    }
+    if (hasServiceAnnotation) confidence += 0.2
+    
+    return DddService(
+        className = className,
+        fileName = fileName,
+        isStateless = isStateless,
+        hasDomainLogic = hasDomainLogic,
+        methods = businessMethods.map { it.nameAsString },
+        confidence = confidence
+    )
+}
+
+fun analyzeJavaRepository(classDecl: ClassOrInterfaceDeclaration, fileName: String): DddRepository {
+    var confidence = 0.0
+    val className = classDecl.nameAsString
+    
+    // Check if it's an interface
+    val isInterface = classDecl.isInterface
+    if (isInterface) confidence += 0.3
+    
+    // Check naming patterns
+    if (className.endsWith("Repository") || className.contains("Repository")) {
+        confidence += 0.4
+    }
+    
+    // Check for CRUD methods
+    val crudMethods = mutableListOf<String>()
+    classDecl.methods.forEach { method ->
+        val methodName = method.nameAsString.lowercase()
+        if (methodName.startsWith("find") || methodName.startsWith("get") ||
+            methodName.startsWith("save") || methodName.startsWith("delete") ||
+            methodName.startsWith("create") || methodName.startsWith("update")) {
+            crudMethods.add(method.nameAsString)
+        }
+    }
+    val hasDataAccess = crudMethods.isNotEmpty()
+    if (hasDataAccess) confidence += 0.2
+    
+    // Check for Spring Repository annotation
+    val hasRepositoryAnnotation = classDecl.annotations.any { 
+        it.nameAsString.contains("Repository")
+    }
+    if (hasRepositoryAnnotation) confidence += 0.3
+    
+    return DddRepository(
+        className = className,
+        fileName = fileName,
+        isInterface = isInterface,
+        hasDataAccess = hasDataAccess,
+        crudMethods = crudMethods,
+        confidence = confidence
+    )
+}
+
+// Kotlin DDD Pattern Analysis Functions (referenced in mixed analysis)
+fun analyzeKotlinEntity(classOrObject: KtClassOrObject, fileName: String): DddEntity {
+    var confidence = 0.0
+    val className = classOrObject.name ?: "Anonymous"
+    
+    // Check for ID fields
+    val idFields = mutableListOf<String>()
+    val hasIdField = classOrObject.declarations.filterIsInstance<KtProperty>().any { property ->
+        val propertyName = property.name?.lowercase() ?: ""
+        val hasIdAnnotation = property.annotationEntries.any { it.shortName?.asString()?.contains("Id") == true }
+        val isIdField = propertyName == "id" || propertyName.endsWith("id") || hasIdAnnotation
+        if (isIdField) {
+            idFields.add(property.name ?: "")
+        }
+        isIdField
+    }
+    if (hasIdField) confidence += 0.3
+    
+    // Check for mutability
+    val hasMutableProperties = classOrObject.declarations.filterIsInstance<KtProperty>().any { property ->
+        property.isVar
+    }
+    if (hasMutableProperties) confidence += 0.2
+    
+    // Check for equals/hashCode
+    val methods = classOrObject.declarations.filterIsInstance<KtNamedFunction>()
+    val hasEqualsHashCode = methods.any { it.name == "equals" } && methods.any { it.name == "hashCode" }
+    if (hasEqualsHashCode) confidence += 0.3
+    
+    // Check naming patterns
+    if (className.endsWith("Entity") || className.endsWith("Aggregate")) confidence += 0.2
+    
+    return DddEntity(
+        className = className,
+        fileName = fileName,
+        hasUniqueId = hasIdField,
+        isMutable = hasMutableProperties,
+        idFields = idFields,
+        confidence = confidence
+    )
+}
+
+fun analyzeKotlinValueObject(classOrObject: KtClassOrObject, fileName: String): DddValueObject {
+    var confidence = 0.0
+    val className = classOrObject.name ?: "Anonymous"
+    
+    // Check for immutability (val properties)
+    val properties = classOrObject.declarations.filterIsInstance<KtProperty>()
+    val isImmutable = properties.all { !it.isVar }
+    if (isImmutable) confidence += 0.4
+    
+    // Check for data class
+    if (classOrObject is KtClass && classOrObject.isData()) confidence += 0.3
+    
+    // Check naming patterns
+    if (className.endsWith("Value") || className.endsWith("ValueObject")) confidence += 0.2
+    
+    return DddValueObject(
+        className = className,
+        fileName = fileName,
+        isImmutable = isImmutable,
+        hasValueEquality = classOrObject is KtClass && classOrObject.isData(),
+        properties = properties.map { it.name ?: "" },
+        confidence = confidence
+    )
+}
+
+fun analyzeKotlinService(classOrObject: KtClassOrObject, fileName: String): DddService {
+    var confidence = 0.0
+    val className = classOrObject.name ?: "Anonymous"
+    
+    // Check naming patterns
+    if (className.endsWith("Service") || className.endsWith("Handler") || className.contains("Service")) {
+        confidence += 0.3
+    }
+    
+    // Check for business logic methods
+    val methods = classOrObject.declarations.filterIsInstance<KtNamedFunction>()
+    val businessMethods = methods.filter { method ->
+        val methodName = method.name ?: ""
+        !methodName.startsWith("get") && 
+        !methodName.startsWith("set") &&
+        !methodName.equals("equals") &&
+        !methodName.equals("hashCode") &&
+        !methodName.equals("toString")
+    }
+    val hasDomainLogic = businessMethods.isNotEmpty()
+    if (hasDomainLogic) confidence += 0.2
+    
+    // Check for statelessness (no var properties except dependencies)
+    val properties = classOrObject.declarations.filterIsInstance<KtProperty>()
+    val isStateless = properties.all { property ->
+        !property.isVar || property.annotationEntries.any { 
+            it.shortName?.asString()?.contains("Inject") == true
+        }
+    }
+    if (isStateless) confidence += 0.3
+    
+    return DddService(
+        className = className,
+        fileName = fileName,
+        isStateless = isStateless,
+        hasDomainLogic = hasDomainLogic,
+        methods = businessMethods.map { it.name ?: "" },
+        confidence = confidence
+    )
+}
+
+fun analyzeKotlinRepository(classOrObject: KtClassOrObject, fileName: String): DddRepository {
+    var confidence = 0.0
+    val className = classOrObject.name ?: "Anonymous"
+    
+    // Check if it's an interface
+    val isInterface = classOrObject is KtClass && classOrObject.isInterface()
+    if (isInterface) confidence += 0.3
+    
+    // Check naming patterns
+    if (className.endsWith("Repository") || className.contains("Repository")) {
+        confidence += 0.4
+    }
+    
+    // Check for CRUD methods
+    val methods = classOrObject.declarations.filterIsInstance<KtNamedFunction>()
+    val crudMethods = mutableListOf<String>()
+    methods.forEach { method ->
+        val methodName = method.name?.lowercase() ?: ""
+        if (methodName.startsWith("find") || methodName.startsWith("get") ||
+            methodName.startsWith("save") || methodName.startsWith("delete") ||
+            methodName.startsWith("create") || methodName.startsWith("update")) {
+            crudMethods.add(method.name ?: "")
+        }
+    }
+    val hasDataAccess = crudMethods.isNotEmpty()
+    if (hasDataAccess) confidence += 0.2
+    
+    return DddRepository(
+        className = className,
+        fileName = fileName,
+        isInterface = isInterface,
+        hasDataAccess = hasDataAccess,
+        crudMethods = crudMethods,
+        confidence = confidence
     )
 }
 
@@ -1651,6 +2352,184 @@ fun getComplexityQualityIcon(avgComplexity: Double): String = when {
     avgComplexity <= 7 -> "👍"
     avgComplexity <= 10 -> "⚠️"
     else -> "❌"
+}
+
+// Java Analysis Functions
+fun analyzeJavaClass(classDecl: ClassOrInterfaceDeclaration, fileName: String): ClassAnalysis {
+    val className = classDecl.nameAsString
+    val fields = classDecl.fields.map { it.variables.first().nameAsString }
+    val methods = classDecl.methods
+    val methodFieldUsage = mutableMapOf<String, Set<String>>()
+    
+    for (method in methods) {
+        val usedFields = mutableSetOf<String>()
+        method.accept(object : VoidVisitorAdapter<Void>() {
+            override fun visit(n: NameExpr, arg: Void?) {
+                if (fields.contains(n.nameAsString)) {
+                    usedFields.add(n.nameAsString)
+                }
+                super.visit(n, arg)
+            }
+            
+            override fun visit(n: FieldAccessExpr, arg: Void?) {
+                val fieldName = n.nameAsString
+                if (fields.contains(fieldName)) {
+                    usedFields.add(fieldName)
+                }
+                super.visit(n, arg)
+            }
+        }, null)
+        methodFieldUsage[method.nameAsString] = usedFields
+    }
+    
+    // Calculate LCOM for Java
+    val methodsList = methodFieldUsage.entries.toList()
+    var pairsWithoutCommon = 0
+    var pairsWithCommon = 0
+    
+    for (i in methodsList.indices) {
+        for (j in i + 1 until methodsList.size) {
+            val fields1 = methodsList[i].value
+            val fields2 = methodsList[j].value
+            if (fields1.intersect(fields2).isEmpty()) {
+                pairsWithoutCommon++
+            } else {
+                pairsWithCommon++
+            }
+        }
+    }
+    
+    var lcom = pairsWithoutCommon - pairsWithCommon
+    if (lcom < 0) lcom = 0
+    
+    val complexity = analyzeJavaComplexity(methods)
+    val suggestions = generateJavaSuggestions(lcom, methods.size, fields.size, complexity)
+    
+    return ClassAnalysis(
+        className = className,
+        fileName = fileName,
+        lcom = lcom,
+        methodCount = methods.size,
+        propertyCount = fields.size,
+        methodDetails = methodFieldUsage,
+        suggestions = suggestions,
+        complexity = complexity
+    )
+}
+
+fun analyzeJavaComplexity(methods: List<MethodDeclaration>): ComplexityAnalysis {
+    val methodComplexities = methods.map { method ->
+        val complexity = calculateJavaCyclomaticComplexity(method)
+        val lineCount = method.toString().lines().size
+        MethodComplexity(method.nameAsString, complexity, lineCount)
+    }
+    
+    val totalComplexity = methodComplexities.sumOf { it.cyclomaticComplexity }
+    val averageComplexity = if (methodComplexities.isNotEmpty()) {
+        totalComplexity.toDouble() / methodComplexities.size
+    } else 0.0
+    val maxComplexity = methodComplexities.maxOfOrNull { it.cyclomaticComplexity } ?: 0
+    val complexMethods = methodComplexities.filter { it.cyclomaticComplexity > 10 }
+    
+    return ComplexityAnalysis(
+        methods = methodComplexities,
+        totalComplexity = totalComplexity,
+        averageComplexity = averageComplexity,
+        maxComplexity = maxComplexity,
+        complexMethods = complexMethods
+    )
+}
+
+fun calculateJavaCyclomaticComplexity(method: MethodDeclaration): Int {
+    var complexity = 1 // Base complexity
+    
+    method.accept(object : VoidVisitorAdapter<Void>() {
+        override fun visit(n: IfStmt, arg: Void?) {
+            complexity++
+            super.visit(n, arg)
+        }
+        
+        override fun visit(n: SwitchStmt, arg: Void?) {
+            complexity += n.entries.size
+            super.visit(n, arg)
+        }
+        
+        override fun visit(n: ForStmt, arg: Void?) {
+            complexity++
+            super.visit(n, arg)
+        }
+        
+        override fun visit(n: ForEachStmt, arg: Void?) {
+            complexity++
+            super.visit(n, arg)
+        }
+        
+        override fun visit(n: WhileStmt, arg: Void?) {
+            complexity++
+            super.visit(n, arg)
+        }
+        
+        override fun visit(n: DoStmt, arg: Void?) {
+            complexity++
+            super.visit(n, arg)
+        }
+        
+        override fun visit(n: TryStmt, arg: Void?) {
+            complexity++ // try block
+            complexity += n.catchClauses.size // each catch
+            super.visit(n, arg)
+        }
+        
+        override fun visit(n: ConditionalExpr, arg: Void?) {
+            complexity++ // ternary operator
+            super.visit(n, arg)
+        }
+        
+        override fun visit(n: BinaryExpr, arg: Void?) {
+            when (n.operator) {
+                BinaryExpr.Operator.AND, BinaryExpr.Operator.OR -> complexity++
+                else -> {}
+            }
+            super.visit(n, arg)
+        }
+    }, null)
+    
+    return complexity
+}
+
+fun generateJavaSuggestions(lcom: Int, methodCount: Int, fieldCount: Int, complexity: ComplexityAnalysis): List<Suggestion> {
+    val suggestions = mutableListOf<Suggestion>()
+    
+    if (lcom > 0) {
+        val icon = when {
+            lcom > 10 -> "❌"
+            lcom > 5 -> "⚠️"
+            else -> "⚡"
+        }
+        suggestions.add(Suggestion(
+            icon = icon,
+            message = "Consider splitting this class (LCOM = $lcom)",
+            tooltip = "LCOM measures lack of cohesion. Higher values suggest the class has multiple responsibilities."
+        ))
+    }
+    
+    if (complexity.maxComplexity > 10) {
+        suggestions.add(Suggestion(
+            icon = "❌",
+            message = "High cyclomatic complexity detected (max: ${complexity.maxComplexity})",
+            tooltip = "Methods with complexity > 10 are harder to test and maintain."
+        ))
+    }
+    
+    if (methodCount > 20) {
+        suggestions.add(Suggestion(
+            icon = "⚠️",
+            message = "Large class with $methodCount methods",
+            tooltip = "Classes with many methods might violate Single Responsibility Principle."
+        ))
+    }
+    
+    return suggestions
 }
 
 fun generateHtmlReport(analyses: List<ClassAnalysis>, architectureAnalysis: ArchitectureAnalysis) {

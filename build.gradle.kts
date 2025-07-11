@@ -15,6 +15,10 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
     implementation("org.jetbrains.kotlin:kotlin-reflect:1.9.22")
     
+    // Java parser for Java code analysis
+    implementation("com.github.javaparser:javaparser-core:3.25.7")
+    implementation("com.github.javaparser:javaparser-symbol-solver-core:3.25.7")
+    
     // Test dependencies
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:1.9.22")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")

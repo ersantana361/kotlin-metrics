@@ -2487,25 +2487,47 @@ new Chart(scatterCtx, {
 
 // Table sorting and filtering functionality
 let sortDirection = {};
-let currentFilter = 'all';
+let currentFilter = { lcom: 'all', complexity: 'all' };
 
-// Filter functionality
+// Filter functionality for both tabs
 document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-        // Update active filter button
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        // Update active filter button within the same tab
+        const parentTab = this.closest('.tab-pane');
+        const tabButtons = parentTab.querySelectorAll('.filter-btn');
+        tabButtons.forEach(b => b.classList.remove('active'));
         this.classList.add('active');
         
-        currentFilter = this.dataset.filter;
-        filterTable();
+        const filter = this.dataset.filter;
+        const tabId = parentTab.id;
+        
+        if (tabId === 'lcom') {
+            currentFilter.lcom = filter;
+            filterLcomTable();
+        } else if (tabId === 'complexity') {
+            currentFilter.complexity = filter;
+            filterComplexityTable();
+        }
     });
 });
 
-function filterTable() {
+function filterLcomTable() {
     const rows = document.querySelectorAll('#classTable tbody tr');
     rows.forEach(row => {
         const quality = row.dataset.quality;
-        if (currentFilter === 'all' || quality === currentFilter) {
+        if (currentFilter.lcom === 'all' || quality === currentFilter.lcom) {
+            row.classList.remove('filtered');
+        } else {
+            row.classList.add('filtered');
+        }
+    });
+}
+
+function filterComplexityTable() {
+    const rows = document.querySelectorAll('#methodTable tbody tr');
+    rows.forEach(row => {
+        const complexityLevel = row.dataset.complexityLevel;
+        if (currentFilter.complexity === 'all' || complexityLevel === currentFilter.complexity) {
             row.classList.remove('filtered');
         } else {
             row.classList.add('filtered');
@@ -2523,8 +2545,10 @@ document.querySelectorAll('.sortable').forEach(th => {
         // Update sort direction
         sortDirection[column] = newDirection;
         
-        // Update sort indicators
-        document.querySelectorAll('.sort-indicator').forEach(indicator => {
+        // Update sort indicators within the same table
+        const table = this.closest('table');
+        const indicators = table.querySelectorAll('.sort-indicator');
+        indicators.forEach(indicator => {
             indicator.classList.remove('active');
             indicator.textContent = '↕️';
         });
@@ -2533,11 +2557,17 @@ document.querySelectorAll('.sortable').forEach(th => {
         indicator.classList.add('active');
         indicator.textContent = newDirection === 'asc' ? '↑' : '↓';
         
-        sortTable(column, newDirection);
+        // Determine which table to sort
+        const tableId = table.id;
+        if (tableId === 'classTable') {
+            sortLcomTable(column, newDirection);
+        } else if (tableId === 'methodTable') {
+            sortComplexityTable(column, newDirection);
+        }
     });
 });
 
-function sortTable(column, direction) {
+function sortLcomTable(column, direction) {
     const tbody = document.querySelector('#classTable tbody');
     const rows = Array.from(tbody.querySelectorAll('tr'));
     
@@ -2585,7 +2615,54 @@ function sortTable(column, direction) {
     rows.forEach(row => tbody.appendChild(row));
     
     // Re-apply filter after sorting
-    filterTable();
+    filterLcomTable();
+}
+
+function sortComplexityTable(column, direction) {
+    const tbody = document.querySelector('#methodTable tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    rows.sort((a, b) => {
+        let aVal, bVal;
+        
+        switch(column) {
+            case 'class':
+                aVal = a.dataset.class;
+                bVal = b.dataset.class;
+                break;
+            case 'method':
+                aVal = a.dataset.method;
+                bVal = b.dataset.method;
+                break;
+            case 'complexity':
+                aVal = parseInt(a.dataset.complexity);
+                bVal = parseInt(b.dataset.complexity);
+                break;
+            case 'lines':
+                aVal = parseInt(a.dataset.lines);
+                bVal = parseInt(b.dataset.lines);
+                break;
+            case 'complexity-level':
+                const complexityOrder = {'simple': 0, 'moderate': 1, 'complex': 2, 'very-complex': 3};
+                aVal = complexityOrder[a.dataset.complexityLevel];
+                bVal = complexityOrder[b.dataset.complexityLevel];
+                break;
+            default:
+                return 0;
+        }
+        
+        if (typeof aVal === 'string') {
+            return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        } else {
+            return direction === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+    });
+    
+    // Re-append sorted rows
+    rows.forEach(row => tbody.appendChild(row));
+    
+    // Re-apply filter after sorting
+    filterComplexityTable();
 }
 
 // Initialize tooltips

@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm") version "1.9.22"
     application
+    jacoco
 }
 
 group = "com.kotlinmetrics"
@@ -53,4 +54,18 @@ tasks.register<Jar>("fatJar") {
 
 tasks.test {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+}
+
+jacoco {
+    toolVersion = "0.8.8"
 }

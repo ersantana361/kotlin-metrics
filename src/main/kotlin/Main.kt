@@ -2080,8 +2080,8 @@ fun calculateCyclomaticComplexity(method: KtNamedFunction): Int {
         }
         
         override fun visitTryExpression(expression: KtTryExpression) {
-            // Add 1 for each catch clause
-            complexity += expression.catchClauses.size
+            // Add 1 for the try block itself + 1 for each catch clause
+            complexity += 1 + expression.catchClauses.size
             super.visitTryExpression(expression)
         }
         

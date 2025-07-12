@@ -203,7 +203,7 @@ class HtmlReportGenerator {
         .node.data { fill: #9b59b6; }
         .node.unknown { fill: #95a5a6; }
         
-        /* Enhanced tooltips */
+        /* Enhanced tooltips and guides */
         .tooltip { 
             position: absolute; 
             padding: 12px; 
@@ -215,6 +215,140 @@ class HtmlReportGenerator {
             z-index: 1000;
             max-width: 300px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        /* Custom tooltips for metrics */
+        .metric-tooltip {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 12px;
+            max-width: 400px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .metric-tooltip h6 {
+            color: #fff;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+        
+        .metric-tooltip .metric-value {
+            background: rgba(255,255,255,0.2);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-block;
+            margin: 0.25rem 0;
+        }
+        
+        /* Help icons */
+        .help-icon {
+            color: var(--info-color);
+            cursor: help;
+            margin-left: 8px;
+            font-size: 0.9em;
+            transition: color 0.2s;
+        }
+        
+        .help-icon:hover {
+            color: var(--primary-color);
+        }
+        
+        /* Metric interpretation guides */
+        .interpretation-guide {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 1.25rem;
+            border-radius: 12px;
+            margin: 1rem 0;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+        
+        .interpretation-guide h6 {
+            color: #fff;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .metric-scale {
+            display: flex;
+            justify-content: space-between;
+            margin: 0.75rem 0;
+            background: rgba(255,255,255,0.2);
+            border-radius: 6px;
+            padding: 0.5rem;
+        }
+        
+        .scale-item {
+            text-align: center;
+            flex: 1;
+            padding: 0.25rem;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        
+        .scale-excellent { background: rgba(40, 167, 69, 0.8); }
+        .scale-good { background: rgba(23, 162, 184, 0.8); }
+        .scale-moderate { background: rgba(255, 193, 7, 0.8); }
+        .scale-poor { background: rgba(220, 53, 69, 0.8); }
+        
+        /* Architecture guide styles */
+        .architecture-guide {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 1.25rem;
+            border-radius: 12px;
+            margin: 1rem 0;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+        
+        .ddd-pattern-guide {
+            background: rgba(255,255,255,0.15);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+        }
+        
+        .pattern-confidence {
+            display: inline-block;
+            background: rgba(255,255,255,0.3);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 0.5rem;
+        }
+        
+        /* Info boxes */
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid var(--info-color);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .info-box h6 {
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid var(--warning-color);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .warning-box h6 {
+            color: #856404;
+            margin-bottom: 0.5rem;
         }
         
         /* Animation classes */
@@ -319,13 +453,32 @@ class HtmlReportGenerator {
         
         return """
         <div class="tab-pane fade show active" id="overview" role="tabpanel">
+            <!-- Quality Score Interpretation Guide -->
+            <div class="interpretation-guide">
+                <h6><i class="fas fa-graduation-cap me-2"></i>Understanding Quality Scores</h6>
+                <p>Quality scores range from 0-10 and combine multiple software metrics to assess code maintainability, reliability, and design quality.</p>
+                <div class="metric-scale">
+                    <div class="scale-item scale-excellent">9-10<br>Excellent</div>
+                    <div class="scale-item scale-good">7-8<br>Good</div>
+                    <div class="scale-item scale-moderate">5-6<br>Moderate</div>
+                    <div class="scale-item scale-poor">0-4<br>Poor</div>
+                </div>
+                <small><strong>Formula:</strong> Cohesion (25%) + Complexity (25%) + Coupling (25%) + Inheritance (15%) + Architecture (10%)</small>
+            </div>
+        
             <div class="row">
-                <!-- Project Summary Cards -->
+                <!-- Project Summary Cards with Enhanced Tooltips -->
                 <div class="col-md-3 col-sm-6 mb-4">
                     <div class="card metric-card text-center">
                         <div class="card-body">
                             <h3 class="text-primary">${totalClasses}</h3>
-                            <p class="card-text">Total Classes</p>
+                            <p class="card-text">Total Classes 
+                                <i class="fas fa-question-circle help-icon" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   data-bs-html="true"
+                                   title="<div class='metric-tooltip'><h6>Total Classes</h6>Number of classes analyzed in your codebase. <br><strong>Why it matters:</strong> Larger codebases require more attention to architecture and quality patterns.</div>"></i>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -333,7 +486,13 @@ class HtmlReportGenerator {
                     <div class="card metric-card text-center">
                         <div class="card-body">
                             <h3 class="text-info">%.1f</h3>
-                            <p class="card-text">Overall Quality Score</p>
+                            <p class="card-text">Overall Quality Score 
+                                <i class="fas fa-question-circle help-icon" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   data-bs-html="true"
+                                   title="<div class='metric-tooltip'><h6>Quality Score</h6>Composite score (0-10) combining:<br>• <span class='metric-value'>Cohesion (25%)</span><br>• <span class='metric-value'>Complexity (25%)</span><br>• <span class='metric-value'>Coupling (25%)</span><br>• <span class='metric-value'>Inheritance (15%)</span><br>• <span class='metric-value'>Architecture (10%)</span><br><strong>Target:</strong> Aim for 7+ for maintainable code</div>"></i>
+                            </p>
                             <div class="quality-progress">
                                 <div class="quality-progress-bar bg-info" style="width: %.1f%%"></div>
                             </div>
@@ -344,7 +503,13 @@ class HtmlReportGenerator {
                     <div class="card metric-card text-center">
                         <div class="card-body">
                             <h3 class="text-warning">%.1f</h3>
-                            <p class="card-text">Avg LCOM</p>
+                            <p class="card-text">Avg LCOM 
+                                <i class="fas fa-question-circle help-icon" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   data-bs-html="true"
+                                   title="<div class='metric-tooltip'><h6>LCOM (Lack of Cohesion of Methods)</h6>Measures how well methods in a class work together through shared properties.<br><br><span class='metric-value'>LCOM = 0:</span> Excellent cohesion<br><span class='metric-value'>LCOM 1-2:</span> Good cohesion<br><span class='metric-value'>LCOM 3-5:</span> Moderate cohesion<br><span class='metric-value'>LCOM >5:</span> Poor cohesion<br><br><strong>Impact:</strong> High LCOM suggests the class has multiple responsibilities and should be split.</div>"></i>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -352,7 +517,13 @@ class HtmlReportGenerator {
                     <div class="card metric-card text-center">
                         <div class="card-body">
                             <h3 class="text-danger">${highRiskClasses}</h3>
-                            <p class="card-text">High Risk Classes</p>
+                            <p class="card-text">High Risk Classes 
+                                <i class="fas fa-question-circle help-icon" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   data-bs-html="true"
+                                   title="<div class='metric-tooltip'><h6>High Risk Classes</h6>Classes with quality scores below 5.0 or specific risk factors:<br><br>• <span class='metric-value'>LCOM > 10:</span> Very poor cohesion<br>• <span class='metric-value'>WMC > 50:</span> Extremely complex<br>• <span class='metric-value'>CBO > 20:</span> Excessive coupling<br>• <span class='metric-value'>DIT > 6:</span> Deep inheritance<br><br><strong>Action:</strong> These classes should be prioritized for refactoring.</div>"></i>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -406,6 +577,44 @@ class HtmlReportGenerator {
     private fun generateQualityTab(analyses: List<ClassAnalysis>): String {
         return """
         <div class="tab-pane fade" id="quality" role="tabpanel">
+            <!-- LCOM and Complexity Interpretation Guide -->
+            <div class="interpretation-guide">
+                <h6><i class="fas fa-puzzle-piece me-2"></i>Cohesion & Complexity Analysis</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>LCOM (Lack of Cohesion of Methods)</h6>
+                        <p><strong>What it measures:</strong> How well methods within a class work together by sharing instance properties.</p>
+                        <div class="metric-scale">
+                            <div class="scale-item scale-excellent">0<br>Perfect</div>
+                            <div class="scale-item scale-good">1-2<br>Good</div>
+                            <div class="scale-item scale-moderate">3-5<br>Fair</div>
+                            <div class="scale-item scale-poor">6+<br>Poor</div>
+                        </div>
+                        <small><strong>Formula:</strong> LCOM = P - Q (minimum 0)<br>P = method pairs with no shared properties<br>Q = method pairs with shared properties</small>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>WMC (Weighted Methods per Class)</h6>
+                        <p><strong>What it measures:</strong> Sum of cyclomatic complexity of all methods in a class.</p>
+                        <div class="metric-scale">
+                            <div class="scale-item scale-excellent">1-10<br>Simple</div>
+                            <div class="scale-item scale-good">11-20<br>Moderate</div>
+                            <div class="scale-item scale-moderate">21-50<br>Complex</div>
+                            <div class="scale-item scale-poor">51+<br>Very Complex</div>
+                        </div>
+                        <small><strong>Impact:</strong> High WMC makes classes harder to understand, test, and maintain.</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <h6><i class="fas fa-lightbulb me-2"></i>Improvement Tips</h6>
+                <ul class="mb-0">
+                    <li><strong>High LCOM:</strong> Consider splitting the class into smaller, more focused classes (Single Responsibility Principle)</li>
+                    <li><strong>High WMC:</strong> Break down complex methods, extract utility functions, reduce nested conditions</li>
+                    <li><strong>Both High:</strong> Class likely has multiple responsibilities - prime candidate for refactoring</li>
+                </ul>
+            </div>
+        
             <div class="filter-panel">
                 <h6><i class="fas fa-filter me-2"></i>Quality Filters</h6>
                 <div class="btn-group" role="group">
@@ -463,11 +672,73 @@ class HtmlReportGenerator {
     private fun generateCouplingTab(analyses: List<ClassAnalysis>): String {
         return """
         <div class="tab-pane fade" id="coupling" role="tabpanel">
+            <!-- Coupling Metrics Interpretation Guide -->
+            <div class="interpretation-guide">
+                <h6><i class="fas fa-link me-2"></i>Understanding Coupling Metrics</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>CBO (Coupling Between Objects)</h6>
+                        <p><strong>What it measures:</strong> Number of classes this class is coupled to (bidirectional).</p>
+                        <div class="metric-scale">
+                            <div class="scale-item scale-excellent">0-5<br>Low</div>
+                            <div class="scale-item scale-good">6-10<br>Moderate</div>
+                            <div class="scale-item scale-moderate">11-20<br>High</div>
+                            <div class="scale-item scale-poor">21+<br>Very High</div>
+                        </div>
+                        
+                        <h6 class="mt-3">RFC (Response For a Class)</h6>
+                        <p><strong>What it measures:</strong> Number of methods that can be invoked in response to a message.</p>
+                        <div class="metric-scale">
+                            <div class="scale-item scale-excellent">0-20<br>Low</div>
+                            <div class="scale-item scale-good">21-40<br>Moderate</div>
+                            <div class="scale-item scale-moderate">41-60<br>High</div>
+                            <div class="scale-item scale-poor">61+<br>Very High</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>CA (Afferent Coupling)</h6>
+                        <p><strong>What it measures:</strong> Number of classes that depend on this class (incoming dependencies).</p>
+                        <div class="metric-scale">
+                            <div class="scale-item scale-excellent">0-5<br>Low</div>
+                            <div class="scale-item scale-good">6-10<br>Moderate</div>
+                            <div class="scale-item scale-moderate">11-20<br>High</div>
+                            <div class="scale-item scale-poor">21+<br>Very High</div>
+                        </div>
+                        
+                        <h6 class="mt-3">CE (Efferent Coupling)</h6>
+                        <p><strong>What it measures:</strong> Number of classes this class depends on (outgoing dependencies).</p>
+                        <div class="metric-scale">
+                            <div class="scale-item scale-excellent">0-5<br>Low</div>
+                            <div class="scale-item scale-good">6-10<br>Moderate</div>
+                            <div class="scale-item scale-moderate">11-20<br>High</div>
+                            <div class="scale-item scale-poor">21+<br>Very High</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="warning-box">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>Why Coupling Matters</h6>
+                <ul class="mb-0">
+                    <li><strong>High CBO:</strong> Class is tightly coupled - changes ripple through many dependencies</li>
+                    <li><strong>High RFC:</strong> Class interface is complex - difficult to understand and test</li>
+                    <li><strong>High CA:</strong> Class is central to system - changes affect many other classes</li>
+                    <li><strong>High CE:</strong> Class depends on many others - fragile to external changes</li>
+                    <li><strong>Goal:</strong> Aim for loose coupling with focused responsibilities</li>
+                </ul>
+            </div>
+        
             <div class="row">
                 <div class="col-md-6 mb-4">
                     <div class="card">
                         <div class="card-header">
-                            <h5><i class="fas fa-exchange-alt me-2"></i>Coupling Between Objects (CBO)</h5>
+                            <h5><i class="fas fa-exchange-alt me-2"></i>Coupling Between Objects (CBO)
+                                <i class="fas fa-question-circle help-icon" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   data-bs-html="true"
+                                   title="<div class='metric-tooltip'><h6>CBO - Coupling Between Objects</h6>Counts unique classes this class references or is referenced by.<br><br><strong>Low CBO (0-5):</strong> Good isolation<br><strong>High CBO (20+):</strong> Tightly coupled, hard to maintain<br><br><strong>Reduce by:</strong> Dependency injection, interfaces, facade patterns</div>"></i>
+                            </h5>
                         </div>
                         <div class="card-body">
                             <div class="chart-container">
@@ -536,11 +807,64 @@ class HtmlReportGenerator {
     private fun generateDesignTab(analyses: List<ClassAnalysis>): String {
         return """
         <div class="tab-pane fade" id="design" role="tabpanel">
+            <!-- Inheritance Metrics Interpretation Guide -->
+            <div class="interpretation-guide">
+                <h6><i class="fas fa-sitemap me-2"></i>Inheritance Design Analysis</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>DIT (Depth of Inheritance Tree)</h6>
+                        <p><strong>What it measures:</strong> Maximum length from the class to the root of inheritance tree.</p>
+                        <div class="metric-scale">
+                            <div class="scale-item scale-excellent">1-2<br>Shallow</div>
+                            <div class="scale-item scale-good">3-4<br>Moderate</div>
+                            <div class="scale-item scale-moderate">5-6<br>Deep</div>
+                            <div class="scale-item scale-poor">7+<br>Very Deep</div>
+                        </div>
+                        <small><strong>Deep inheritance problems:</strong> Complex behavior understanding, difficult debugging, tight coupling</small>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>NOC (Number of Children)</h6>
+                        <p><strong>What it measures:</strong> Number of immediate subclasses of a class.</p>
+                        <div class="metric-scale">
+                            <div class="scale-item scale-excellent">0-3<br>Focused</div>
+                            <div class="scale-item scale-good">4-7<br>Moderate</div>
+                            <div class="scale-item scale-moderate">8-15<br>Many</div>
+                            <div class="scale-item scale-poor">16+<br>Too Many</div>
+                        </div>
+                        <small><strong>Many children indicate:</strong> Important abstraction or potential over-generalization</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <h6><i class="fas fa-balance-scale me-2"></i>Inheritance Design Principles</h6>
+                <div class="row">
+                    <div class="col-md-4">
+                        <strong>Favor Composition over Inheritance</strong><br>
+                        <small>Use delegation and composition when inheritance creates deep hierarchies</small>
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Liskov Substitution Principle</strong><br>
+                        <small>Subclasses should be substitutable for their base classes</small>
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Open/Closed Principle</strong><br>
+                        <small>Design for extension without modification of existing code</small>
+                    </div>
+                </div>
+            </div>
+        
             <div class="row">
                 <div class="col-md-6 mb-4">
                     <div class="card">
                         <div class="card-header">
-                            <h5><i class="fas fa-layer-group me-2"></i>Depth of Inheritance Tree (DIT)</h5>
+                            <h5><i class="fas fa-layer-group me-2"></i>Depth of Inheritance Tree (DIT)
+                                <i class="fas fa-question-circle help-icon" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   data-bs-html="true"
+                                   title="<div class='metric-tooltip'><h6>DIT - Depth of Inheritance Tree</h6>Measures how deep a class is in inheritance hierarchy.<br><br><strong>Shallow (1-2):</strong> Easy to understand<br><strong>Deep (6+):</strong> Complex, hard to debug<br><br><strong>Problems with deep inheritance:</strong><br>• Hard to understand behavior<br>• Difficult debugging<br>• Tight coupling<br>• Fragile base class problem</div>"></i>
+                            </h5>
                         </div>
                         <div class="card-body">
                             <div class="chart-container">
@@ -582,11 +906,86 @@ class HtmlReportGenerator {
     private fun generateArchitectureTab(architectureAnalysis: ArchitectureAnalysis): String {
         return """
         <div class="tab-pane fade" id="architecture" role="tabpanel">
+            <!-- Architecture Analysis Guide -->
+            <div class="architecture-guide">
+                <h6><i class="fas fa-building me-2"></i>Architecture Analysis Guide</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>DDD (Domain-Driven Design) Patterns</h6>
+                        <div class="ddd-pattern-guide">
+                            <strong>Entities:</strong> Objects with identity and lifecycle<br>
+                            <small>Confidence based on: ID fields, mutability, equals/hashCode</small>
+                        </div>
+                        <div class="ddd-pattern-guide">
+                            <strong>Value Objects:</strong> Immutable objects defined by attributes<br>
+                            <small>Confidence based on: immutability, data classes, no ID</small>
+                        </div>
+                        <div class="ddd-pattern-guide">
+                            <strong>Services:</strong> Stateless operations on domain objects<br>
+                            <small>Confidence based on: naming patterns, statelessness</small>
+                        </div>
+                        <div class="ddd-pattern-guide">
+                            <strong>Repositories:</strong> Data access abstraction<br>
+                            <small>Confidence based on: CRUD operations, data access patterns</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Layered Architecture Patterns</h6>
+                        <div class="ddd-pattern-guide">
+                            <strong>Presentation Layer:</strong> UI, controllers, API endpoints<br>
+                            <small>Handles user interaction and data presentation</small>
+                        </div>
+                        <div class="ddd-pattern-guide">
+                            <strong>Application Layer:</strong> Use cases, application services<br>
+                            <small>Orchestrates domain operations and business workflows</small>
+                        </div>
+                        <div class="ddd-pattern-guide">
+                            <strong>Domain Layer:</strong> Business logic, entities, value objects<br>
+                            <small>Core business rules and domain model</small>
+                        </div>
+                        <div class="ddd-pattern-guide">
+                            <strong>Infrastructure Layer:</strong> Database, external services<br>
+                            <small>Technical implementation details and external integrations</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <h6><i class="fas fa-search me-2"></i>How Pattern Detection Works</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Analysis Criteria:</strong>
+                        <ul class="small mb-0">
+                            <li>Class and package naming conventions</li>
+                            <li>Method signatures and responsibilities</li>
+                            <li>Field types and mutability patterns</li>
+                            <li>Annotation usage (JPA, Spring, etc.)</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Confidence Levels:</strong>
+                        <ul class="small mb-0">
+                            <li><strong>90-100%:</strong> Strong indicators present</li>
+                            <li><strong>70-89%:</strong> Good pattern match</li>
+                            <li><strong>50-69%:</strong> Moderate confidence</li>
+                            <li><strong>Below 50%:</strong> Weak pattern match</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        
             <div class="row">
                 <div class="col-md-8 mb-4">
                     <div class="card">
                         <div class="card-header">
-                            <h5><i class="fas fa-project-diagram me-2"></i>Dependency Graph</h5>
+                            <h5><i class="fas fa-project-diagram me-2"></i>Dependency Graph
+                                <i class="fas fa-question-circle help-icon" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   data-bs-html="true"
+                                   title="<div class='metric-tooltip'><h6>Dependency Graph Visualization</h6>Interactive graph showing class relationships and dependencies.<br><br><strong>Node Colors:</strong><br>• <span class='metric-value'>Red:</span> Presentation Layer<br>• <span class='metric-value'>Orange:</span> Application Layer<br>• <span class='metric-value'>Green:</span> Domain Layer<br>• <span class='metric-value'>Blue:</span> Infrastructure Layer<br><br><strong>Edges:</strong> Dependencies between classes<br><strong>Cycles:</strong> Circular dependencies (red lines)</div>"></i>
+                            </h5>
                         </div>
                         <div class="card-body">
                             <div id="dependencyGraph"></div>
@@ -596,7 +995,13 @@ class HtmlReportGenerator {
                 <div class="col-md-4 mb-4">
                     <div class="card">
                         <div class="card-header">
-                            <h5><i class="fas fa-layer-group me-2"></i>Architecture Layers</h5>
+                            <h5><i class="fas fa-layer-group me-2"></i>Architecture Layers
+                                <i class="fas fa-question-circle help-icon" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   data-bs-html="true"
+                                   title="<div class='metric-tooltip'><h6>Architecture Layer Analysis</h6>Detected layers based on package structure and naming patterns.<br><br><strong>Good Architecture:</strong><br>• Clear layer separation<br>• Dependencies flow inward<br>• No circular dependencies<br>• Domain layer independence</div>"></i>
+                            </h5>
                         </div>
                         <div class="card-body">
                             ${generateLayersInfo(architectureAnalysis.layeredArchitecture)}
@@ -775,12 +1180,48 @@ class HtmlReportGenerator {
             append("""<thead class="table-dark">""")
             append("""<tr>""")
             append("""<th class="sortable" data-column="name">Class <i class="fas fa-sort sort-indicator"></i></th>""")
-            append("""<th class="sortable" data-column="quality">Quality <i class="fas fa-sort sort-indicator"></i></th>""")
-            append("""<th class="sortable" data-column="lcom">LCOM <i class="fas fa-sort sort-indicator"></i></th>""")
-            append("""<th class="sortable" data-column="wmc">WMC <i class="fas fa-sort sort-indicator"></i></th>""")
-            append("""<th class="sortable" data-column="cbo">CBO <i class="fas fa-sort sort-indicator"></i></th>""")
-            append("""<th class="sortable" data-column="dit">DIT <i class="fas fa-sort sort-indicator"></i></th>""")
-            append("""<th class="sortable" data-column="risk">Risk <i class="fas fa-sort sort-indicator"></i></th>""")
+            append("""<th class="sortable" data-column="quality">Quality 
+                        <i class="fas fa-question-circle help-icon" 
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top" 
+                           data-bs-html="true"
+                           title="<div class='metric-tooltip'><h6>Quality Score (0-10)</h6>Composite score combining all CK metrics</div>"></i>
+                        <i class="fas fa-sort sort-indicator"></i></th>""")
+            append("""<th class="sortable" data-column="lcom">LCOM 
+                        <i class="fas fa-question-circle help-icon" 
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top" 
+                           data-bs-html="true"
+                           title="<div class='metric-tooltip'><h6>Lack of Cohesion of Methods</h6>0 = Perfect cohesion<br>Higher values = Poor cohesion</div>"></i>
+                        <i class="fas fa-sort sort-indicator"></i></th>""")
+            append("""<th class="sortable" data-column="wmc">WMC 
+                        <i class="fas fa-question-circle help-icon" 
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top" 
+                           data-bs-html="true"
+                           title="<div class='metric-tooltip'><h6>Weighted Methods per Class</h6>Sum of cyclomatic complexity of all methods</div>"></i>
+                        <i class="fas fa-sort sort-indicator"></i></th>""")
+            append("""<th class="sortable" data-column="cbo">CBO 
+                        <i class="fas fa-question-circle help-icon" 
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top" 
+                           data-bs-html="true"
+                           title="<div class='metric-tooltip'><h6>Coupling Between Objects</h6>Number of classes this class is coupled to</div>"></i>
+                        <i class="fas fa-sort sort-indicator"></i></th>""")
+            append("""<th class="sortable" data-column="dit">DIT 
+                        <i class="fas fa-question-circle help-icon" 
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top" 
+                           data-bs-html="true"
+                           title="<div class='metric-tooltip'><h6>Depth of Inheritance Tree</h6>Maximum inheritance depth from root</div>"></i>
+                        <i class="fas fa-sort sort-indicator"></i></th>""")
+            append("""<th class="sortable" data-column="risk">Risk 
+                        <i class="fas fa-question-circle help-icon" 
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top" 
+                           data-bs-html="true"
+                           title="<div class='metric-tooltip'><h6>Risk Assessment</h6>Based on quality score and metric thresholds</div>"></i>
+                        <i class="fas fa-sort sort-indicator"></i></th>""")
             append("""<th>Actions</th>""")
             append("""</tr></thead><tbody>""")
             

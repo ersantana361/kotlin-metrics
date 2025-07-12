@@ -485,7 +485,7 @@ class HtmlReportGenerator {
                 <div class="col-md-3 col-sm-6 mb-4">
                     <div class="card metric-card text-center">
                         <div class="card-body">
-                            <h3 class="text-info">%.1f</h3>
+                            <h3 class="text-info">${"%.1f".format(projectQualityScore.overall)}</h3>
                             <p class="card-text">Overall Quality Score 
                                 <i class="fas fa-question-circle help-icon" 
                                    data-bs-toggle="tooltip" 
@@ -494,7 +494,7 @@ class HtmlReportGenerator {
                                    title="<div class='metric-tooltip'><h6>Quality Score</h6>Composite score (0-10) combining:<br>• <span class='metric-value'>Cohesion (25%)</span><br>• <span class='metric-value'>Complexity (25%)</span><br>• <span class='metric-value'>Coupling (25%)</span><br>• <span class='metric-value'>Inheritance (15%)</span><br>• <span class='metric-value'>Architecture (10%)</span><br><strong>Target:</strong> Aim for 7+ for maintainable code</div>"></i>
                             </p>
                             <div class="quality-progress">
-                                <div class="quality-progress-bar bg-info" style="width: %.1f%%"></div>
+                                <div class="quality-progress-bar bg-info" style="width: ${"%.1f".format(projectQualityScore.overall * 10)}%"></div>
                             </div>
                         </div>
                     </div>
@@ -502,7 +502,7 @@ class HtmlReportGenerator {
                 <div class="col-md-3 col-sm-6 mb-4">
                     <div class="card metric-card text-center">
                         <div class="card-body">
-                            <h3 class="text-warning">%.1f</h3>
+                            <h3 class="text-warning">${"%.1f".format(avgLcom)}</h3>
                             <p class="card-text">Avg LCOM 
                                 <i class="fas fa-question-circle help-icon" 
                                    data-bs-toggle="tooltip" 
@@ -571,7 +571,7 @@ class HtmlReportGenerator {
                 </div>
             </div>
         </div>
-        """.format(projectQualityScore.overall, projectQualityScore.overall * 10, avgLcom)
+        """
     }
     
     private fun generateQualityTab(analyses: List<ClassAnalysis>): String {

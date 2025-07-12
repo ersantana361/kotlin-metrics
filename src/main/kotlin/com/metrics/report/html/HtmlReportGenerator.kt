@@ -866,60 +866,8 @@ class HtmlReportGenerator {
     }
     
     private fun generateJavaScript(analyses: List<ClassAnalysis>, architectureAnalysis: ArchitectureAnalysis): String {
-        return """
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-    // Enhanced Chart Generation and Interactivity
-    document.addEventListener('DOMContentLoaded', function() {
-        generateOverviewCharts();
-        generateQualityCharts();
-        generateCouplingCharts();
-        generateDesignCharts();
-        generateArchitectureVisualization();
-        setupTableInteractivity();
-        setupFilterSystem();
-    });
-    
-    function generateOverviewCharts() {
-        // Implementation for overview charts
-        console.log('Overview charts initialized');
-    }
-    
-    function generateQualityCharts() {
-        // Implementation for quality charts
-        console.log('Quality charts initialized');
-    }
-    
-    function generateCouplingCharts() {
-        // Implementation for coupling charts
-        console.log('Coupling charts initialized');
-    }
-    
-    function generateDesignCharts() {
-        // Implementation for design charts
-        console.log('Design charts initialized');
-    }
-    
-    function generateArchitectureVisualization() {
-        // Implementation for architecture visualization
-        console.log('Architecture visualization initialized');
-    }
-    
-    function setupTableInteractivity() {
-        // Implementation for table sorting and filtering
-        console.log('Table interactivity initialized');
-    }
-    
-    function setupFilterSystem() {
-        // Implementation for filter system
-        console.log('Filter system initialized');
-    }
-    
-    function showClassDetails(className) {
-        alert('Detailed view for: ' + className);
-    }
-</script>
-"""
+        val jsGenerator = SimpleJavaScriptGenerator()
+        return jsGenerator.generateJavaScript(analyses, architectureAnalysis)
     }
     
     private fun generateHtmlFooter(): String = """

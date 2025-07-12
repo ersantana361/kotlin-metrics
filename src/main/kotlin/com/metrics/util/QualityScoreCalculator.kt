@@ -1,6 +1,8 @@
 package com.metrics.util
 
 import com.metrics.model.analysis.*
+import org.jetbrains.kotlin.psi.KtClassOrObject
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration
 
 /**
  * Utility for calculating composite quality scores and risk assessments.
@@ -91,6 +93,50 @@ object QualityScoreCalculator {
             ce = 0,  // Will be calculated in Phase 2
             dit = 0, // Will be calculated in Phase 2
             noc = 0, // Will be calculated in Phase 2
+            lcom = lcom
+        )
+    }
+    
+    /**
+     * Creates complete CK metrics using all calculators.
+     */
+    fun createCompleteCkMetrics(
+        classOrObject: KtClassOrObject,
+        allKotlinClasses: List<KtClassOrObject>,
+        lcom: Int,
+        totalComplexity: Int
+    ): CkMetrics {
+        return CkMetrics(
+            wmc = WmcCalculator.calculateWmc(classOrObject),
+            cyclomaticComplexity = totalComplexity,
+            cbo = CouplingCalculator.calculateCbo(classOrObject, allKotlinClasses),
+            rfc = CouplingCalculator.calculateRfc(classOrObject),
+            ca = CouplingCalculator.calculateCa(classOrObject, allKotlinClasses),
+            ce = CouplingCalculator.calculateCe(classOrObject, allKotlinClasses),
+            dit = InheritanceCalculator.calculateDit(classOrObject, allKotlinClasses),
+            noc = InheritanceCalculator.calculateNoc(classOrObject, allKotlinClasses),
+            lcom = lcom
+        )
+    }
+    
+    /**
+     * Creates complete CK metrics for Java classes.
+     */
+    fun createCompleteJavaCkMetrics(
+        classDecl: ClassOrInterfaceDeclaration,
+        allJavaClasses: List<ClassOrInterfaceDeclaration>,
+        lcom: Int,
+        totalComplexity: Int
+    ): CkMetrics {
+        return CkMetrics(
+            wmc = WmcCalculator.calculateJavaWmc(classDecl),
+            cyclomaticComplexity = totalComplexity,
+            cbo = CouplingCalculator.calculateJavaCbo(classDecl, allJavaClasses),
+            rfc = CouplingCalculator.calculateJavaRfc(classDecl),
+            ca = CouplingCalculator.calculateJavaCa(classDecl, allJavaClasses),
+            ce = CouplingCalculator.calculateJavaCe(classDecl, allJavaClasses),
+            dit = InheritanceCalculator.calculateJavaDit(classDecl, allJavaClasses),
+            noc = InheritanceCalculator.calculateJavaNoc(classDecl, allJavaClasses),
             lcom = lcom
         )
     }

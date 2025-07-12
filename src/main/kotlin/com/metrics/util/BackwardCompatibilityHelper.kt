@@ -2,6 +2,8 @@ package com.metrics.util
 
 import com.metrics.model.analysis.*
 import com.metrics.model.architecture.*
+import org.jetbrains.kotlin.psi.KtClassOrObject
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration
 
 /**
  * Helper for maintaining backward compatibility during Phase 1 transition.
@@ -23,6 +25,90 @@ object BackwardCompatibilityHelper {
     ): ClassAnalysis {
         // Create default CK metrics
         val ckMetrics = QualityScoreCalculator.createDefaultCkMetrics(lcom, complexity.totalComplexity)
+        
+        // Calculate quality score
+        val qualityScore = QualityScoreCalculator.calculateQualityScore(ckMetrics)
+        
+        // Assess risk
+        val riskAssessment = QualityScoreCalculator.assessRisk(ckMetrics, qualityScore)
+        
+        return ClassAnalysis(
+            className = className,
+            fileName = fileName,
+            lcom = lcom,
+            methodCount = methodCount,
+            propertyCount = propertyCount,
+            methodDetails = methodDetails,
+            suggestions = suggestions,
+            complexity = complexity,
+            ckMetrics = ckMetrics,
+            qualityScore = qualityScore,
+            riskAssessment = riskAssessment
+        )
+    }
+    
+    /**
+     * Creates enhanced ClassAnalysis with complete CK metrics for Kotlin classes.
+     */
+    fun createEnhancedKotlinClassAnalysis(
+        classOrObject: KtClassOrObject,
+        allKotlinClasses: List<KtClassOrObject>,
+        fileName: String,
+        lcom: Int,
+        methodCount: Int,
+        propertyCount: Int,
+        methodDetails: Map<String, Set<String>>,
+        suggestions: List<Suggestion>,
+        complexity: ComplexityAnalysis
+    ): ClassAnalysis {
+        val className = classOrObject.name ?: "Unknown"
+        
+        // Create complete CK metrics
+        val ckMetrics = QualityScoreCalculator.createCompleteCkMetrics(
+            classOrObject, allKotlinClasses, lcom, complexity.totalComplexity
+        )
+        
+        // Calculate quality score
+        val qualityScore = QualityScoreCalculator.calculateQualityScore(ckMetrics)
+        
+        // Assess risk
+        val riskAssessment = QualityScoreCalculator.assessRisk(ckMetrics, qualityScore)
+        
+        return ClassAnalysis(
+            className = className,
+            fileName = fileName,
+            lcom = lcom,
+            methodCount = methodCount,
+            propertyCount = propertyCount,
+            methodDetails = methodDetails,
+            suggestions = suggestions,
+            complexity = complexity,
+            ckMetrics = ckMetrics,
+            qualityScore = qualityScore,
+            riskAssessment = riskAssessment
+        )
+    }
+    
+    /**
+     * Creates enhanced ClassAnalysis with complete CK metrics for Java classes.
+     */
+    fun createEnhancedJavaClassAnalysis(
+        classDecl: ClassOrInterfaceDeclaration,
+        allJavaClasses: List<ClassOrInterfaceDeclaration>,
+        fileName: String,
+        lcom: Int,
+        methodCount: Int,
+        propertyCount: Int,
+        methodDetails: Map<String, Set<String>>,
+        suggestions: List<Suggestion>,
+        complexity: ComplexityAnalysis
+    ): ClassAnalysis {
+        val className = classDecl.nameAsString
+        
+        // Create complete CK metrics
+        val ckMetrics = QualityScoreCalculator.createCompleteJavaCkMetrics(
+            classDecl, allJavaClasses, lcom, complexity.totalComplexity
+        )
         
         // Calculate quality score
         val qualityScore = QualityScoreCalculator.calculateQualityScore(ckMetrics)

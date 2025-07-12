@@ -54,6 +54,9 @@ class JavaCodeAnalyzer : CodeAnalyzer {
     fun analyzeFiles(javaFiles: List<CompilationUnit>, originalFiles: List<java.io.File>): List<ClassAnalysis> {
         val analyses = mutableListOf<ClassAnalysis>()
         
+        // Collect all classes for cross-class analysis (coupling, inheritance)
+        val allClasses = javaFiles.flatMap { it.findAll(ClassOrInterfaceDeclaration::class.java) }
+        
         for ((index, compilationUnit) in javaFiles.withIndex()) {
             val fileName = if (index < originalFiles.size) originalFiles[index].name else "Unknown.java"
             
@@ -61,7 +64,7 @@ class JavaCodeAnalyzer : CodeAnalyzer {
             
             for (classDecl in classes) {
                 try {
-                    val analysis = analyzeJavaClass(classDecl, fileName)
+                    val analysis = analyzeJavaClass(classDecl, fileName, allClasses)
                     analyses.add(analysis)
                 } catch (e: Exception) {
                     // Skip malformed classes but continue analysis
@@ -76,7 +79,7 @@ class JavaCodeAnalyzer : CodeAnalyzer {
     /**
      * Analyzes a single Java class using the extracted utility classes.
      */
-    private fun analyzeJavaClass(classDecl: ClassOrInterfaceDeclaration, fileName: String): ClassAnalysis {
+    private fun analyzeJavaClass(classDecl: ClassOrInterfaceDeclaration, fileName: String, allClasses: List<ClassOrInterfaceDeclaration>): ClassAnalysis {
         val className = classDecl.nameAsString
         
         // Extract method-property relationships for LCOM calculation
@@ -105,8 +108,9 @@ class JavaCodeAnalyzer : CodeAnalyzer {
         // Generate suggestions using utility class
         val suggestions = SuggestionGenerator.generateJavaSuggestions(lcom, methods.size, classDecl.getFields().size, complexityAnalysis)
         
-        return BackwardCompatibilityHelper.createEnhancedClassAnalysis(
-            className = className,
+        return BackwardCompatibilityHelper.createEnhancedJavaClassAnalysis(
+            classDecl = classDecl,
+            allJavaClasses = allClasses,
             fileName = fileName,
             lcom = lcom,
             methodCount = methods.size,

@@ -51,12 +51,15 @@ class KotlinCodeAnalyzer : CodeAnalyzer {
     fun analyzeFiles(ktFiles: List<KtFile>): List<ClassAnalysis> {
         val analyses = mutableListOf<ClassAnalysis>()
         
+        // Collect all classes for cross-class analysis (coupling, inheritance)
+        val allClasses = ktFiles.flatMap { it.declarations.filterIsInstance<KtClassOrObject>() }
+        
         for (ktFile in ktFiles) {
             val classes = ktFile.declarations.filterIsInstance<KtClassOrObject>()
             
             for (classOrObject in classes) {
                 try {
-                    val analysis = analyzeClass(classOrObject, ktFile)
+                    val analysis = analyzeClass(classOrObject, ktFile, allClasses)
                     analyses.add(analysis)
                 } catch (e: Exception) {
                     // Skip malformed classes but continue analysis
@@ -71,7 +74,7 @@ class KotlinCodeAnalyzer : CodeAnalyzer {
     /**
      * Analyzes a single Kotlin class using the extracted utility classes.
      */
-    private fun analyzeClass(classOrObject: KtClassOrObject, ktFile: KtFile): ClassAnalysis {
+    private fun analyzeClass(classOrObject: KtClassOrObject, ktFile: KtFile, allClasses: List<KtClassOrObject>): ClassAnalysis {
         val className = classOrObject.name ?: "Unknown"
         val fileName = ktFile.name
         
@@ -102,8 +105,9 @@ class KotlinCodeAnalyzer : CodeAnalyzer {
         val properties = classOrObject.declarations.filterIsInstance<KtProperty>().mapNotNull { it.name }
         val suggestions = SuggestionGenerator.generateSuggestions(lcom, methodPropertyMap, properties, complexityAnalysis)
         
-        return BackwardCompatibilityHelper.createEnhancedClassAnalysis(
-            className = className,
+        return BackwardCompatibilityHelper.createEnhancedKotlinClassAnalysis(
+            classOrObject = classOrObject,
+            allKotlinClasses = allClasses,
             fileName = fileName,
             lcom = lcom,
             methodCount = methods.size,

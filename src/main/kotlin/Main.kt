@@ -152,34 +152,158 @@ fun main() {
                     )
                 }
             ),
-            ckMetrics = com.metrics.model.analysis.CkMetrics(
-                wmc = oldAnalysis.complexity.totalComplexity,
-                cyclomaticComplexity = oldAnalysis.complexity.totalComplexity,
-                cbo = 0, rfc = 0, ca = 0, ce = 0, dit = 0, noc = 0, lcom = oldAnalysis.lcom
-            ),
-            qualityScore = com.metrics.model.analysis.QualityScore(
-                cohesion = if (oldAnalysis.lcom == 0) 10.0 else 5.0,
-                complexity = 5.0, coupling = 5.0, inheritance = 5.0, architecture = 5.0, overall = 5.0
-            ),
-            riskAssessment = com.metrics.model.analysis.RiskAssessment(
-                level = com.metrics.model.analysis.RiskLevel.LOW,
-                reasons = emptyList(),
-                impact = "No significant impact",
-                priority = 1
-            )
+            ckMetrics = oldAnalysis.ckMetrics,
+            qualityScore = oldAnalysis.qualityScore,
+            riskAssessment = oldAnalysis.riskAssessment
         )
     }
     val newArchitectureAnalysis = com.metrics.model.architecture.ArchitectureAnalysis(
         dddPatterns = com.metrics.model.architecture.DddPatternAnalysis(
-            entities = emptyList(), valueObjects = emptyList(), services = emptyList(),
-            repositories = emptyList(), aggregates = emptyList(), domainEvents = emptyList()
+            entities = architectureAnalysis.dddPatterns.entities.map { entity ->
+                com.metrics.model.architecture.DddEntity(
+                    className = entity.className,
+                    fileName = entity.fileName,
+                    hasUniqueId = entity.hasUniqueId,
+                    isMutable = entity.isMutable,
+                    idFields = entity.idFields,
+                    confidence = entity.confidence
+                )
+            },
+            valueObjects = architectureAnalysis.dddPatterns.valueObjects.map { vo ->
+                com.metrics.model.architecture.DddValueObject(
+                    className = vo.className,
+                    fileName = vo.fileName,
+                    isImmutable = vo.isImmutable,
+                    hasValueEquality = vo.hasValueEquality,
+                    properties = vo.properties,
+                    confidence = vo.confidence
+                )
+            },
+            services = architectureAnalysis.dddPatterns.services.map { service ->
+                com.metrics.model.architecture.DddService(
+                    className = service.className,
+                    fileName = service.fileName,
+                    isStateless = service.isStateless,
+                    hasDomainLogic = service.hasDomainLogic,
+                    methods = service.methods,
+                    confidence = service.confidence
+                )
+            },
+            repositories = architectureAnalysis.dddPatterns.repositories.map { repo ->
+                com.metrics.model.architecture.DddRepository(
+                    className = repo.className,
+                    fileName = repo.fileName,
+                    isInterface = repo.isInterface,
+                    hasDataAccess = repo.hasDataAccess,
+                    crudMethods = repo.crudMethods,
+                    confidence = repo.confidence
+                )
+            },
+            aggregates = architectureAnalysis.dddPatterns.aggregates.map { aggregate ->
+                com.metrics.model.architecture.DddAggregate(
+                    className = aggregate.className,
+                    fileName = aggregate.fileName,
+                    confidence = aggregate.confidence
+                )
+            },
+            domainEvents = architectureAnalysis.dddPatterns.domainEvents.map { event ->
+                com.metrics.model.architecture.DddDomainEvent(
+                    className = event.className,
+                    fileName = event.fileName,
+                    isEvent = event.isEvent,
+                    isImmutable = event.isImmutable,
+                    hasEventNaming = event.hasEventNaming,
+                    hasTimestamp = event.hasTimestamp,
+                    confidence = event.confidence
+                )
+            }
         ),
         layeredArchitecture = com.metrics.model.architecture.LayeredArchitectureAnalysis(
-            layers = emptyList(), dependencies = emptyList(), violations = emptyList(),
-            pattern = com.metrics.model.common.ArchitecturePattern.UNKNOWN
+            layers = architectureAnalysis.layeredArchitecture.layers.map { layer ->
+                com.metrics.model.architecture.ArchitectureLayer(
+                    name = layer.name,
+                    type = when (layer.type) {
+                        LayerType.PRESENTATION -> com.metrics.model.common.LayerType.PRESENTATION
+                        LayerType.APPLICATION -> com.metrics.model.common.LayerType.APPLICATION
+                        LayerType.DOMAIN -> com.metrics.model.common.LayerType.DOMAIN
+                        LayerType.DATA -> com.metrics.model.common.LayerType.DATA
+                        LayerType.INFRASTRUCTURE -> com.metrics.model.common.LayerType.INFRASTRUCTURE
+                    },
+                    packages = layer.packages,
+                    classes = layer.classes,
+                    level = layer.level
+                )
+            },
+            dependencies = architectureAnalysis.layeredArchitecture.dependencies.map { dep ->
+                com.metrics.model.architecture.LayerDependency(
+                    fromLayer = dep.fromLayer,
+                    toLayer = dep.toLayer,
+                    dependencyCount = dep.dependencyCount,
+                    isValid = dep.isValid
+                )
+            },
+            violations = architectureAnalysis.layeredArchitecture.violations.map { violation ->
+                com.metrics.model.architecture.ArchitectureViolation(
+                    fromClass = violation.fromClass,
+                    toClass = violation.toClass,
+                    violationType = when (violation.violationType) {
+                        ViolationType.LAYER_VIOLATION -> com.metrics.model.common.ViolationType.LAYER_VIOLATION
+                        ViolationType.DEPENDENCY_INVERSION -> com.metrics.model.common.ViolationType.DEPENDENCY_INVERSION
+                        ViolationType.CIRCULAR_DEPENDENCY -> com.metrics.model.common.ViolationType.CIRCULAR_DEPENDENCY
+                    },
+                    suggestion = violation.suggestion
+                )
+            },
+            pattern = when (architectureAnalysis.layeredArchitecture.pattern) {
+                ArchitecturePattern.LAYERED -> com.metrics.model.common.ArchitecturePattern.LAYERED
+                ArchitecturePattern.HEXAGONAL -> com.metrics.model.common.ArchitecturePattern.HEXAGONAL
+                ArchitecturePattern.CLEAN -> com.metrics.model.common.ArchitecturePattern.CLEAN
+                ArchitecturePattern.ONION -> com.metrics.model.common.ArchitecturePattern.ONION
+                ArchitecturePattern.UNKNOWN -> com.metrics.model.common.ArchitecturePattern.UNKNOWN
+            }
         ),
         dependencyGraph = com.metrics.model.architecture.DependencyGraph(
-            nodes = emptyList(), edges = emptyList(), cycles = emptyList(), packages = emptyList()
+            nodes = architectureAnalysis.dependencyGraph.nodes.map { node ->
+                com.metrics.model.architecture.DependencyNode(
+                    id = node.id,
+                    className = node.className,
+                    fileName = node.fileName,
+                    packageName = node.packageName,
+                    nodeType = when (node.nodeType) {
+                        NodeType.CLASS -> com.metrics.model.common.NodeType.CLASS
+                        NodeType.INTERFACE -> com.metrics.model.common.NodeType.INTERFACE
+                        NodeType.ENUM -> com.metrics.model.common.NodeType.ENUM
+                        NodeType.OBJECT -> com.metrics.model.common.NodeType.OBJECT
+                    },
+                    layer = node.layer,
+                    language = node.language
+                )
+            },
+            edges = architectureAnalysis.dependencyGraph.edges.map { edge ->
+                com.metrics.model.architecture.DependencyEdge(
+                    fromId = edge.fromId,
+                    toId = edge.toId,
+                    dependencyType = when (edge.dependencyType) {
+                        DependencyType.INHERITANCE -> com.metrics.model.architecture.DependencyType.INHERITANCE
+                        DependencyType.COMPOSITION -> com.metrics.model.architecture.DependencyType.COMPOSITION
+                        DependencyType.USAGE -> com.metrics.model.architecture.DependencyType.USAGE
+                        DependencyType.INTERFACE_IMPLEMENTATION -> com.metrics.model.architecture.DependencyType.INTERFACE_IMPLEMENTATION
+                    },
+                    strength = edge.strength
+                )
+            },
+            cycles = architectureAnalysis.dependencyGraph.cycles.map { cycle ->
+                com.metrics.model.architecture.DependencyCycle(
+                    nodes = cycle.nodes,
+                    severity = cycle.severity
+                )
+            },
+            packages = architectureAnalysis.dependencyGraph.packages.map { pkg ->
+                com.metrics.model.architecture.PackageAnalysis(
+                    packageName = pkg.packageName,
+                    classCount = pkg.classCount
+                )
+            }
         )
     )
     htmlGenerator.generateReport(newAnalyses, newArchitectureAnalysis)

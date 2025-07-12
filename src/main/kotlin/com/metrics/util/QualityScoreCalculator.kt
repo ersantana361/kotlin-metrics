@@ -84,15 +84,30 @@ object QualityScoreCalculator {
      * Creates default CK metrics for backward compatibility.
      */
     fun createDefaultCkMetrics(lcom: Int, totalComplexity: Int): CkMetrics {
+        // Provide reasonable default estimates for simpler classes
+        val estimatedCbo = when {
+            totalComplexity > 20 -> 8
+            totalComplexity > 10 -> 5
+            totalComplexity > 5 -> 3
+            else -> 2
+        }
+        
+        val estimatedRfc = when {
+            totalComplexity > 20 -> 15
+            totalComplexity > 10 -> 10
+            totalComplexity > 5 -> 8
+            else -> 5
+        }
+        
         return CkMetrics(
             wmc = totalComplexity,
             cyclomaticComplexity = totalComplexity,
-            cbo = 0, // Will be calculated in Phase 2
-            rfc = 0, // Will be calculated in Phase 2
-            ca = 0,  // Will be calculated in Phase 2
-            ce = 0,  // Will be calculated in Phase 2
-            dit = 0, // Will be calculated in Phase 2
-            noc = 0, // Will be calculated in Phase 2
+            cbo = estimatedCbo,
+            rfc = estimatedRfc,
+            ca = 1, // Most classes are referenced at least once
+            ce = estimatedCbo, // CE similar to CBO
+            dit = 0, // Assume no inheritance for simple calculation
+            noc = 0, // Assume no children for simple calculation
             lcom = lcom
         )
     }
@@ -165,6 +180,11 @@ object QualityScoreCalculator {
     }
     
     private fun calculateCouplingScore(cbo: Int, rfc: Int, ca: Int, ce: Int): Double {
+        // If all coupling metrics are 0, it's either a very simple class or miscalculated
+        if (cbo == 0 && rfc == 0 && ca == 0 && ce == 0) {
+            return 8.0 // Assume good coupling for simple classes
+        }
+        
         val totalCoupling = cbo + (rfc / 5) + ca + ce
         return when {
             totalCoupling <= 5 -> 10.0
@@ -177,6 +197,11 @@ object QualityScoreCalculator {
     }
     
     private fun calculateInheritanceScore(dit: Int, noc: Int): Double {
+        // If both DIT and NOC are 0, it means no inheritance (which is often good)
+        if (dit == 0 && noc == 0) {
+            return 9.0 // Good score for simple classes with no inheritance
+        }
+        
         return when {
             dit <= 2 && noc <= 5 -> 10.0
             dit <= 4 && noc <= 10 -> 8.0

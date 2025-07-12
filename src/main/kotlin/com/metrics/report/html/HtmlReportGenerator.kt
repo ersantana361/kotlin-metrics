@@ -614,17 +614,6 @@ class HtmlReportGenerator {
                     <li><strong>Both High:</strong> Class likely has multiple responsibilities - prime candidate for refactoring</li>
                 </ul>
             </div>
-        
-            <div class="filter-panel">
-                <h6><i class="fas fa-filter me-2"></i>Quality Filters</h6>
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-outline-primary filter-btn active" data-filter="all">All Classes</button>
-                    <button type="button" class="btn btn-outline-success filter-btn" data-filter="excellent">Excellent (9-10)</button>
-                    <button type="button" class="btn btn-outline-info filter-btn" data-filter="good">Good (7-8)</button>
-                    <button type="button" class="btn btn-outline-warning filter-btn" data-filter="moderate">Moderate (5-6)</button>
-                    <button type="button" class="btn btn-outline-danger filter-btn" data-filter="poor">Poor (<5)</button>
-                </div>
-            </div>
             
             <div class="row">
                 <div class="col-md-6 mb-4">
@@ -979,16 +968,16 @@ class HtmlReportGenerator {
                 <div class="col-md-8 mb-4">
                     <div class="card">
                         <div class="card-header">
-                            <h5><i class="fas fa-project-diagram me-2"></i>Dependency Graph
+                            <h5><i class="fas fa-list me-2"></i>Classes by Architecture Layer
                                 <i class="fas fa-question-circle help-icon" 
                                    data-bs-toggle="tooltip" 
                                    data-bs-placement="top" 
                                    data-bs-html="true"
-                                   title="<div class='metric-tooltip'><h6>Dependency Graph Visualization</h6>Interactive graph showing class relationships and dependencies.<br><br><strong>Node Colors:</strong><br>• <span class='metric-value'>Red:</span> Presentation Layer<br>• <span class='metric-value'>Orange:</span> Application Layer<br>• <span class='metric-value'>Green:</span> Domain Layer<br>• <span class='metric-value'>Blue:</span> Infrastructure Layer<br><br><strong>Edges:</strong> Dependencies between classes<br><strong>Cycles:</strong> Circular dependencies (red lines)</div>"></i>
+                                   title="<div class='metric-tooltip'><h6>Architecture Class Distribution</h6>Classes organized by detected architecture layers.<br><br><strong>Layers:</strong><br>• <span class='metric-value'>Presentation:</span> Controllers, UI components<br>• <span class='metric-value'>Application:</span> Use cases, services<br>• <span class='metric-value'>Domain:</span> Entities, value objects<br>• <span class='metric-value'>Infrastructure:</span> Repositories, external services<br>• <span class='metric-value'>Unknown:</span> Unclassified classes</div>"></i>
                             </h5>
                         </div>
                         <div class="card-body">
-                            <div id="dependencyGraph"></div>
+                            ${generateArchitectureClassList(architectureAnalysis)}
                         </div>
                     </div>
                 </div>
@@ -1036,6 +1025,69 @@ class HtmlReportGenerator {
             </div>
         </div>
         """
+    }
+    
+    private fun generateArchitectureClassList(architectureAnalysis: ArchitectureAnalysis): String {
+        val nodesByLayer = architectureAnalysis.dependencyGraph.nodes.groupBy { it.layer }
+        
+        return buildString {
+            append("""<div class="architecture-class-list">""")
+            
+            // Sort layers by importance (presentation -> application -> domain -> infrastructure -> unknown)
+            val layerOrder = listOf("presentation", "application", "domain", "infrastructure", "data", "unknown")
+            val sortedLayers = nodesByLayer.keys.sortedBy { layer ->
+                layerOrder.indexOf(layer).takeIf { it >= 0 } ?: layerOrder.size
+            }
+            
+            for (layer in sortedLayers) {
+                val classes = nodesByLayer[layer] ?: continue
+                val layerIcon = when (layer) {
+                    "presentation" -> "fas fa-desktop"
+                    "application" -> "fas fa-cogs"
+                    "domain" -> "fas fa-cube"
+                    "infrastructure", "data" -> "fas fa-database"
+                    else -> "fas fa-question-circle"
+                }
+                
+                val layerColorClass = when (layer) {
+                    "presentation" -> "text-danger"
+                    "application" -> "text-warning"
+                    "domain" -> "text-success"
+                    "infrastructure", "data" -> "text-info"
+                    else -> "text-muted"
+                }
+                
+                append("""
+                    <div class="layer-section mb-3">
+                        <h6 class="$layerColorClass">
+                            <i class="$layerIcon me-2"></i>
+                            ${layer?.uppercase() ?: "UNKNOWN"} Layer (${classes.size} classes)
+                        </h6>
+                        <div class="layer-classes">
+                """)
+                
+                // Sort classes by name for better readability
+                val sortedClasses = classes.sortedBy { it.className }
+                for (classNode in sortedClasses) {
+                    val shortClassName = classNode.className.substringAfterLast('.')
+                    append("""
+                        <span class="badge bg-light text-dark me-2 mb-1" 
+                              data-bs-toggle="tooltip" 
+                              title="Package: ${classNode.id.substringBeforeLast('.', "")}"
+                              style="font-size: 0.8em;">
+                            $shortClassName
+                        </span>
+                    """)
+                }
+                
+                append("""
+                        </div>
+                    </div>
+                """)
+            }
+            
+            append("""</div>""")
+        }
     }
     
     private fun generateDetailsTab(analyses: List<ClassAnalysis>): String {

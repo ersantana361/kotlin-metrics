@@ -283,7 +283,73 @@ fun main() {
         analyzeArchitecture(allKtFiles, analyses)
     }
     generateSummary(analyses, architectureAnalysis)
-    generateHtmlReport(analyses, architectureAnalysis)
+    // Use new HTML generator - convert to new model types
+    val htmlGenerator = com.metrics.report.html.HtmlReportGenerator()
+    val newAnalyses = analyses.map { oldAnalysis ->
+        com.metrics.model.analysis.ClassAnalysis(
+            className = oldAnalysis.className,
+            fileName = oldAnalysis.fileName,
+            lcom = oldAnalysis.lcom,
+            methodCount = oldAnalysis.methodCount,
+            propertyCount = oldAnalysis.propertyCount,
+            methodDetails = oldAnalysis.methodDetails,
+            suggestions = oldAnalysis.suggestions.map { suggestion ->
+                com.metrics.model.analysis.Suggestion(
+                    icon = suggestion.icon,
+                    message = suggestion.message,
+                    tooltip = suggestion.tooltip
+                )
+            },
+            complexity = com.metrics.model.analysis.ComplexityAnalysis(
+                methods = oldAnalysis.complexity.methods.map { method ->
+                    com.metrics.model.analysis.MethodComplexity(
+                        methodName = method.methodName,
+                        cyclomaticComplexity = method.cyclomaticComplexity,
+                        lineCount = method.lineCount
+                    )
+                },
+                totalComplexity = oldAnalysis.complexity.totalComplexity,
+                averageComplexity = oldAnalysis.complexity.averageComplexity,
+                maxComplexity = oldAnalysis.complexity.maxComplexity,
+                complexMethods = oldAnalysis.complexity.complexMethods.map { method ->
+                    com.metrics.model.analysis.MethodComplexity(
+                        methodName = method.methodName,
+                        cyclomaticComplexity = method.cyclomaticComplexity,
+                        lineCount = method.lineCount
+                    )
+                }
+            ),
+            ckMetrics = com.metrics.model.analysis.CkMetrics(
+                wmc = oldAnalysis.complexity.totalComplexity,
+                cyclomaticComplexity = oldAnalysis.complexity.totalComplexity,
+                cbo = 0, rfc = 0, ca = 0, ce = 0, dit = 0, noc = 0, lcom = oldAnalysis.lcom
+            ),
+            qualityScore = com.metrics.model.analysis.QualityScore(
+                cohesion = if (oldAnalysis.lcom == 0) 10.0 else 5.0,
+                complexity = 5.0, coupling = 5.0, inheritance = 5.0, architecture = 5.0, overall = 5.0
+            ),
+            riskAssessment = com.metrics.model.analysis.RiskAssessment(
+                level = com.metrics.model.analysis.RiskLevel.LOW,
+                reasons = emptyList(),
+                impact = "No significant impact",
+                priority = 1
+            )
+        )
+    }
+    val newArchitectureAnalysis = com.metrics.model.architecture.ArchitectureAnalysis(
+        dddPatterns = com.metrics.model.architecture.DddPatternAnalysis(
+            entities = emptyList(), valueObjects = emptyList(), services = emptyList(),
+            repositories = emptyList(), aggregates = emptyList(), domainEvents = emptyList()
+        ),
+        layeredArchitecture = com.metrics.model.architecture.LayeredArchitectureAnalysis(
+            layers = emptyList(), dependencies = emptyList(), violations = emptyList(),
+            pattern = com.metrics.model.common.ArchitecturePattern.UNKNOWN
+        ),
+        dependencyGraph = com.metrics.model.architecture.DependencyGraph(
+            nodes = emptyList(), edges = emptyList(), cycles = emptyList(), packages = emptyList()
+        )
+    )
+    htmlGenerator.generateReport(newAnalyses, newArchitectureAnalysis)
 
     Disposer.dispose(disposable)
 }

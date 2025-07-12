@@ -12,6 +12,7 @@ import org.jetbrains.kotlin.idea.KotlinLanguage
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtClassOrObject
+import com.metrics.util.ComplexityCalculator
 
 class ComplexityAnalysisTest {
     
@@ -38,7 +39,7 @@ class ComplexityAnalysisTest {
         """.trimIndent()
         
         val method = parseKotlinFunction(kotlinCode)
-        val complexity = calculateCyclomaticComplexity(method)
+        val complexity = ComplexityCalculator.calculateCyclomaticComplexity(method)
         
         assertEquals(1, complexity)
     }
@@ -56,7 +57,7 @@ class ComplexityAnalysisTest {
         """.trimIndent()
         
         val method = parseKotlinFunction(kotlinCode)
-        val complexity = calculateCyclomaticComplexity(method)
+        val complexity = ComplexityCalculator.calculateCyclomaticComplexity(method)
         
         assertEquals(2, complexity) // Base 1 + if 1
     }
@@ -75,7 +76,7 @@ class ComplexityAnalysisTest {
         """.trimIndent()
         
         val method = parseKotlinFunction(kotlinCode)
-        val complexity = calculateCyclomaticComplexity(method)
+        val complexity = ComplexityCalculator.calculateCyclomaticComplexity(method)
         
         assertEquals(5, complexity) // Base 1 + 4 when branches
     }
@@ -105,7 +106,7 @@ class ComplexityAnalysisTest {
         """.trimIndent()
         
         val method = parseKotlinFunction(kotlinCode)
-        val complexity = calculateCyclomaticComplexity(method)
+        val complexity = ComplexityCalculator.calculateCyclomaticComplexity(method)
         
         assertEquals(5, complexity) // Base 1 + for 1 + if 1 + while 1 + if 1
     }
@@ -123,7 +124,7 @@ class ComplexityAnalysisTest {
         """.trimIndent()
         
         val method = parseKotlinFunction(kotlinCode)
-        val complexity = calculateCyclomaticComplexity(method)
+        val complexity = ComplexityCalculator.calculateCyclomaticComplexity(method)
         
         assertEquals(5, complexity) // Base 1 + 3 && + 1 ||
     }
@@ -148,7 +149,7 @@ class ComplexityAnalysisTest {
         """.trimIndent()
         
         val method = parseKotlinFunction(kotlinCode)
-        val complexity = calculateCyclomaticComplexity(method)
+        val complexity = ComplexityCalculator.calculateCyclomaticComplexity(method)
         
         assertEquals(5, complexity) // Base 1 + try 1 + if 1 + 2 catch blocks
     }
@@ -186,7 +187,7 @@ class ComplexityAnalysisTest {
         """.trimIndent()
         
         val method = parseKotlinFunction(kotlinCode)
-        val complexity = calculateCyclomaticComplexity(method)
+        val complexity = ComplexityCalculator.calculateCyclomaticComplexity(method)
         
         assertEquals(9, complexity) // Base 1 + if 1 + for 1 + when 3 + if 1 + if 1 + && 1
     }
@@ -229,7 +230,7 @@ class ComplexityAnalysisTest {
         assertEquals(3, methods.size)
         
         val complexities = methods.map { method: KtNamedFunction ->
-            method.name to calculateCyclomaticComplexity(method)
+            method.name to ComplexityCalculator.calculateCyclomaticComplexity(method)
         }.toMap()
         
         assertEquals(1, complexities["simple"])
@@ -244,6 +245,21 @@ class ComplexityAnalysisTest {
         assertEquals("👍", getTestComplexityBadge(7))   // Moderate
         assertEquals("⚠️", getTestComplexityBadge(15))  // Complex
         assertEquals("❌", getTestComplexityBadge(25))  // Very Complex
+    }
+    
+    @Test
+    fun `should use utility class methods for complexity levels`() {
+        assertEquals("Simple", ComplexityCalculator.getComplexityLevel(1))
+        assertEquals("Low", ComplexityCalculator.getComplexityLevel(3))
+        assertEquals("Moderate", ComplexityCalculator.getComplexityLevel(8))
+        assertEquals("High", ComplexityCalculator.getComplexityLevel(15))
+        assertEquals("Very High", ComplexityCalculator.getComplexityLevel(25))
+        
+        assertTrue(ComplexityCalculator.isComplex(15))
+        assertFalse(ComplexityCalculator.isComplex(5))
+        
+        assertTrue(ComplexityCalculator.isVeryComplex(25))
+        assertFalse(ComplexityCalculator.isVeryComplex(15))
     }
     
     private fun parseKotlinFunction(kotlinCode: String): KtNamedFunction {

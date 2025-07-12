@@ -11,6 +11,13 @@ import org.jetbrains.kotlin.com.intellij.psi.PsiFileFactory
 import org.jetbrains.kotlin.idea.KotlinLanguage
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtClassOrObject
+import com.metrics.model.analysis.ClassAnalysis
+import com.metrics.model.analysis.ComplexityAnalysis
+import com.metrics.model.analysis.MethodComplexity
+import com.metrics.model.analysis.Suggestion
+import com.metrics.util.SuggestionGenerator
+import com.metrics.util.ComplexityCalculator
+import com.metrics.util.LcomCalculator
 import java.io.File
 
 class LcomCalculationTest {
@@ -151,7 +158,73 @@ class LcomCalculationTest {
         ) as KtFile
         
         val classOrObject = ktFile.declarations.filterIsInstance<KtClassOrObject>().first()
-        return analyzeClass(classOrObject, "Test.kt")
+        return analyzeClassWithNewStructure(classOrObject, "Test.kt")
+    }
+    
+    private fun analyzeClassWithNewStructure(classOrObject: KtClassOrObject, fileName: String): ClassAnalysis {
+        // Extract method-property relationships using new util classes
+        val methodPropertiesMap = mutableMapOf<String, Set<String>>()
+        val propertyNames = mutableSetOf<String>()
+        val methodComplexities = mutableListOf<MethodComplexity>()
+        
+        // Get properties
+        classOrObject.declarations.filterIsInstance<org.jetbrains.kotlin.psi.KtProperty>().forEach { prop ->
+            propertyNames.add(prop.name ?: "unknown")
+        }
+        
+        // Get methods and their property usage
+        classOrObject.declarations.forEach { declaration ->
+            if (declaration is org.jetbrains.kotlin.psi.KtNamedFunction) {
+                val methodName = declaration.name ?: "unknown"
+                val usedProperties = mutableSetOf<String>()
+                
+                // Simple property usage detection for test
+                val bodyText = declaration.bodyExpression?.text ?: ""
+                propertyNames.forEach { propName ->
+                    if (bodyText.contains(propName)) {
+                        usedProperties.add(propName)
+                    }
+                }
+                
+                methodPropertiesMap[methodName] = usedProperties
+                
+                // Calculate complexity for this method
+                val complexity = ComplexityCalculator.calculateMethodComplexity(declaration)
+                methodComplexities.add(MethodComplexity(methodName, complexity, 10)) // dummy line count
+            }
+        }
+        
+        // Calculate LCOM using the new util
+        val lcom = LcomCalculator.calculateLcom(methodPropertiesMap)
+        
+        // Create complexity analysis
+        val complexityAnalysis = ComplexityAnalysis(
+            methods = methodComplexities,
+            totalComplexity = methodComplexities.sumOf { it.cyclomaticComplexity },
+            averageComplexity = if (methodComplexities.isNotEmpty()) 
+                methodComplexities.map { it.cyclomaticComplexity }.average() else 0.0,
+            maxComplexity = methodComplexities.maxOfOrNull { it.cyclomaticComplexity } ?: 0,
+            complexMethods = methodComplexities.filter { it.cyclomaticComplexity > 10 }
+        )
+        
+        // Generate suggestions
+        val suggestions = SuggestionGenerator.generateSuggestions(
+            lcom = lcom,
+            methodProps = methodPropertiesMap,
+            props = propertyNames.toList(),
+            complexity = complexityAnalysis
+        )
+        
+        return ClassAnalysis(
+            className = classOrObject.name ?: "Unknown",
+            fileName = fileName,
+            lcom = lcom,
+            methodCount = methodPropertiesMap.size,
+            propertyCount = propertyNames.size,
+            methodDetails = methodPropertiesMap,
+            suggestions = suggestions,
+            complexity = complexityAnalysis
+        )
     }
     
     private fun getTestCohesionBadge(lcom: Int): String {

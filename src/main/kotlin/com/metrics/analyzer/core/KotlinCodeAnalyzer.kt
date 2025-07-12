@@ -1,9 +1,8 @@
 package com.metrics.analyzer.core
 
 import com.metrics.model.analysis.*
-import com.metrics.util.LcomCalculator
-import com.metrics.util.ComplexityCalculator
-import com.metrics.util.SuggestionGenerator
+import com.metrics.model.architecture.*
+import com.metrics.util.*
 import org.jetbrains.kotlin.psi.*
 
 /**
@@ -12,34 +11,36 @@ import org.jetbrains.kotlin.psi.*
  */
 class KotlinCodeAnalyzer : CodeAnalyzer {
     
-    override fun analyze(files: List<java.io.File>): com.metrics.model.analysis.ProjectReport {
-        // Temporary implementation for legacy compatibility
-        return com.metrics.model.analysis.ProjectReport(
+    override fun analyze(files: List<java.io.File>): ProjectReport {
+        // Legacy compatibility implementation using BackwardCompatibilityHelper
+        val emptyArchitecture = ArchitectureAnalysis(
+            dddPatterns = DddPatternAnalysis(
+                entities = emptyList(),
+                valueObjects = emptyList(),
+                services = emptyList(),
+                repositories = emptyList(),
+                aggregates = emptyList(),
+                domainEvents = emptyList()
+            ),
+            layeredArchitecture = LayeredArchitectureAnalysis(
+                layers = emptyList(),
+                dependencies = emptyList(),
+                violations = emptyList(),
+                pattern = com.metrics.model.common.ArchitecturePattern.UNKNOWN
+            ),
+            dependencyGraph = DependencyGraph(
+                nodes = emptyList(),
+                edges = emptyList(),
+                cycles = emptyList(),
+                packages = emptyList()
+            )
+        )
+        
+        return BackwardCompatibilityHelper.createEnhancedProjectReport(
             timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
             classes = emptyList(),
             summary = "Use analyzeFiles method instead",
-            architectureAnalysis = com.metrics.model.architecture.ArchitectureAnalysis(
-                dddPatterns = com.metrics.model.architecture.DddPatternAnalysis(
-                    entities = emptyList(),
-                    valueObjects = emptyList(),
-                    services = emptyList(),
-                    repositories = emptyList(),
-                    aggregates = emptyList(),
-                    domainEvents = emptyList()
-                ),
-                layeredArchitecture = com.metrics.model.architecture.LayeredArchitectureAnalysis(
-                    layers = emptyList(),
-                    dependencies = emptyList(),
-                    violations = emptyList(),
-                    pattern = com.metrics.model.common.ArchitecturePattern.UNKNOWN
-                ),
-                dependencyGraph = com.metrics.model.architecture.DependencyGraph(
-                    nodes = emptyList(),
-                    edges = emptyList(),
-                    cycles = emptyList(),
-                    packages = emptyList()
-                )
-            )
+            architectureAnalysis = emptyArchitecture
         )
     }
     
@@ -101,7 +102,7 @@ class KotlinCodeAnalyzer : CodeAnalyzer {
         val properties = classOrObject.declarations.filterIsInstance<KtProperty>().mapNotNull { it.name }
         val suggestions = SuggestionGenerator.generateSuggestions(lcom, methodPropertyMap, properties, complexityAnalysis)
         
-        return ClassAnalysis(
+        return BackwardCompatibilityHelper.createEnhancedClassAnalysis(
             className = className,
             fileName = fileName,
             lcom = lcom,

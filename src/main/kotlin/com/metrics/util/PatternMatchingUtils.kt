@@ -223,12 +223,9 @@ object PatternMatchingUtils {
     }
     
     private fun createMockClassOrObject(): KtClassOrObject {
-        // This is a simple mock for when classOrObject is not provided
-        // In practice, this would be a proper mock object
-        return object : KtClassOrObject {
-            override fun hasModifier(modifier: org.jetbrains.kotlin.lexer.KtKeywordToken): Boolean = false
-            override val declarations: List<org.jetbrains.kotlin.psi.KtDeclaration> = emptyList()
-            // Other required methods would be implemented as no-ops
-        } as KtClassOrObject
+        // Return a mock implementation - in practice this should use a proper mock framework
+        // For now, we'll use null-safe operations where classOrObject is optional
+        // This is a temporary solution for compilation
+        throw UnsupportedOperationException("Mock implementation not available")
     }
 }

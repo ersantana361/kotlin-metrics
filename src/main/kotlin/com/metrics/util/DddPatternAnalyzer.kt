@@ -169,7 +169,7 @@ object DddPatternAnalyzer {
         }
         
         // Check if it's an interface
-        val isInterface = classOrObject.isInterface()
+        val isInterface = classOrObject is org.jetbrains.kotlin.psi.KtClass && classOrObject.isInterface()
         if (isInterface) confidence += 0.2
         
         // Check for CRUD operations

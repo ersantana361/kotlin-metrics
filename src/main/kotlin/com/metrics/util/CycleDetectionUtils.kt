@@ -41,7 +41,7 @@ object CycleDetectionUtils {
             }
         }
         
-        return cycles.distinctBy { it.involvedClasses.sorted() }
+        return cycles.distinctBy { it.nodes.sorted() }
     }
     
     /**
@@ -80,7 +80,7 @@ object CycleDetectionUtils {
      * Analyzes the impact of a cycle based on the classes involved.
      */
     fun analyzeCycleImpact(cycle: DependencyCycle, nodes: List<DependencyNode>): CycleSeverity {
-        val involvedNodes = nodes.filter { it.className in cycle.involvedClasses }
+        val involvedNodes = nodes.filter { it.id in cycle.nodes }
         
         // Count different packages involved
         val packagesInvolved = involvedNodes.map { 
@@ -88,7 +88,7 @@ object CycleDetectionUtils {
         }.distinct().size
         
         // Count classes in cycle
-        val classCount = cycle.involvedClasses.size
+        val classCount = cycle.nodes.size
         
         // Determine severity based on multiple factors
         return when {
@@ -129,14 +129,10 @@ object CycleDetectionUtils {
                 val cycleStartIndex = path.indexOf(neighbor)
                 if (cycleStartIndex >= 0) {
                     val cyclePath = path.subList(cycleStartIndex, path.size) + neighbor
-                    val involvedClasses = cyclePath.map { id ->
-                        allNodes.find { it.id == id }?.className ?: id.substringAfterLast(".")
-                    }
                     
                     val cycle = DependencyCycle(
-                        involvedClasses = involvedClasses,
-                        severity = CycleSeverity.MEDIUM, // Will be updated by analyzeCycleImpact
-                        description = "Circular dependency detected between: ${involvedClasses.joinToString(" -> ")}"
+                        nodes = cyclePath,
+                        severity = CycleSeverity.MEDIUM // Will be updated by analyzeCycleImpact
                     )
                     
                     // Update severity

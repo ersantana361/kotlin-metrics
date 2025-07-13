@@ -86,12 +86,12 @@ class JavaCodeAnalyzer : CodeAnalyzer {
         val methodPropertyMap = extractJavaMethodPropertyRelationships(classDecl)
         
         // Calculate LCOM using utility class
-        val lcom = LcomCalculator.calculateLcom(methodPropertyMap)
+        val lcom = com.metrics.util.LcomCalculator.calculateLcom(methodPropertyMap)
         
         // Calculate complexity for all methods using utility class
         val methods = classDecl.getMethods()
         val methodComplexities = methods.map { method ->
-            val complexity = ComplexityCalculator.calculateJavaCyclomaticComplexity(method)
+            val complexity = com.metrics.util.ComplexityCalculator.calculateJavaCyclomaticComplexity(method)
             val lineCount = method.toString().split('\n').size
             MethodComplexity(method.nameAsString, complexity, lineCount)
         }

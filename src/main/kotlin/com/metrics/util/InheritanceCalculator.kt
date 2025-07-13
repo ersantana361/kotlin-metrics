@@ -9,6 +9,34 @@ import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration
 object InheritanceCalculator {
     
     /**
+     * Simplified DIT calculation without requiring all classes context.
+     */
+    fun calculateDit(classOrObject: KtClassOrObject): Int {
+        return calculateDit(classOrObject, emptyList())
+    }
+    
+    /**
+     * Simplified NOC calculation without requiring all classes context.
+     */
+    fun calculateNoc(classOrObject: KtClassOrObject): Int {
+        return calculateNoc(classOrObject, emptyList())
+    }
+    
+    /**
+     * Simplified Java DIT calculation.
+     */
+    fun calculateJavaDit(classDecl: ClassOrInterfaceDeclaration): Int {
+        return calculateJavaDit(classDecl, emptyList())
+    }
+    
+    /**
+     * Simplified Java NOC calculation.
+     */
+    fun calculateJavaNoc(classDecl: ClassOrInterfaceDeclaration): Int {
+        return calculateJavaNoc(classDecl, emptyList())
+    }
+    
+    /**
      * Calculates DIT (Depth of Inheritance Tree) for a Kotlin class.
      * DIT is the maximum depth of the inheritance hierarchy for a class.
      * Note: Interface implementation doesn't count as inheritance depth.

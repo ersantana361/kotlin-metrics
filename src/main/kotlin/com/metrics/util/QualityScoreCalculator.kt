@@ -211,4 +211,11 @@ object QualityScoreCalculator {
             else -> 1.0
         }
     }
+    
+    /**
+     * Generates risk assessment based on CK metrics and quality score.
+     */
+    fun generateRiskAssessment(ckMetrics: CkMetrics, qualityScore: QualityScore): RiskAssessment {
+        return assessRisk(ckMetrics, qualityScore)
+    }
 }

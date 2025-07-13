@@ -2,6 +2,7 @@ package com.metrics.report.html
 
 import com.metrics.model.analysis.*
 import com.metrics.model.architecture.*
+import com.metrics.report.ReportGenerator
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -10,7 +11,11 @@ import java.time.format.DateTimeFormatter
  * Generates comprehensive HTML reports with reorganized dashboard structure.
  * Phase 3: UI Reorganization with new tab structure and enhanced visualizations.
  */
-class HtmlReportGenerator {
+class HtmlReportGenerator : ReportGenerator {
+    
+    override fun generate(report: ProjectReport) {
+        generateReport(report.classes, report.architectureAnalysis)
+    }
     
     fun generateReport(analyses: List<ClassAnalysis>, architectureAnalysis: ArchitectureAnalysis): File {
         val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))

@@ -356,4 +356,68 @@ object CouplingCalculator {
             else -> CouplingType.USAGE
         }
     }
+    
+    /**
+     * Calculates complete CK metrics for a Kotlin class.
+     */
+    fun calculateCkMetrics(
+        classOrObject: KtClassOrObject, 
+        lcom: Int, 
+        complexity: com.metrics.model.analysis.ComplexityAnalysis
+    ): com.metrics.model.analysis.CkMetrics {
+        // For simplified calculation, use empty lists for context
+        val allClasses = emptyList<KtClassOrObject>()
+        
+        val wmc = WmcCalculator.calculateWmc(classOrObject)
+        val cbo = calculateCbo(classOrObject, allClasses)
+        val rfc = calculateRfc(classOrObject)
+        val ca = calculateCa(classOrObject, allClasses)
+        val ce = calculateCe(classOrObject, allClasses)
+        val dit = InheritanceCalculator.calculateDit(classOrObject)
+        val noc = InheritanceCalculator.calculateNoc(classOrObject, allClasses)
+        
+        return com.metrics.model.analysis.CkMetrics(
+            wmc = wmc,
+            cyclomaticComplexity = complexity.totalComplexity,
+            cbo = cbo,
+            rfc = rfc,
+            ca = ca,
+            ce = ce,
+            dit = dit,
+            noc = noc,
+            lcom = lcom
+        )
+    }
+    
+    /**
+     * Calculates complete CK metrics for a Java class.
+     */
+    fun calculateJavaCkMetrics(
+        classDecl: ClassOrInterfaceDeclaration,
+        lcom: Int,
+        complexity: com.metrics.model.analysis.ComplexityAnalysis
+    ): com.metrics.model.analysis.CkMetrics {
+        // For simplified calculation, use empty lists for context
+        val allClasses = emptyList<ClassOrInterfaceDeclaration>()
+        
+        val wmc = WmcCalculator.calculateJavaWmc(classDecl)
+        val cbo = calculateJavaCbo(classDecl, allClasses)
+        val rfc = calculateJavaRfc(classDecl)
+        val ca = calculateJavaCa(classDecl, allClasses)
+        val ce = calculateJavaCe(classDecl, allClasses)
+        val dit = InheritanceCalculator.calculateJavaDit(classDecl)
+        val noc = InheritanceCalculator.calculateJavaNoc(classDecl, allClasses)
+        
+        return com.metrics.model.analysis.CkMetrics(
+            wmc = wmc,
+            cyclomaticComplexity = complexity.totalComplexity,
+            cbo = cbo,
+            rfc = rfc,
+            ca = ca,
+            ce = ce,
+            dit = dit,
+            noc = noc,
+            lcom = lcom
+        )
+    }
 }

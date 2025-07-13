@@ -82,12 +82,12 @@ class KotlinCodeAnalyzer : CodeAnalyzer {
         val methodPropertyMap = extractMethodPropertyRelationships(classOrObject)
         
         // Calculate LCOM using utility class
-        val lcom = LcomCalculator.calculateLcom(methodPropertyMap)
+        val lcom = com.metrics.util.LcomCalculator.calculateLcom(methodPropertyMap)
         
         // Calculate complexity for all methods using utility class
         val methods = classOrObject.declarations.filterIsInstance<KtNamedFunction>()
         val methodComplexities = methods.map { method ->
-            val complexity = ComplexityCalculator.calculateCyclomaticComplexity(method)
+            val complexity = com.metrics.util.ComplexityCalculator.calculateCyclomaticComplexity(method)
             val lineCount = method.text.split('\n').size
             MethodComplexity(method.name ?: "unknown", complexity, lineCount)
         }

@@ -748,7 +748,7 @@ class SimpleJavaScriptGenerator {
                 "valueObjects": [${architectureAnalysis.dddPatterns.valueObjects.joinToString { "\"${it.className.replace("\"", "\\\"")}\"" }}],
                 "services": [${architectureAnalysis.dddPatterns.services.joinToString { "\"${it.className.replace("\"", "\\\"")}\"" }}],
                 "repositories": [${architectureAnalysis.dddPatterns.repositories.joinToString { "\"${it.className.replace("\"", "\\\"")}\"" }}],
-                "aggregates": [${architectureAnalysis.dddPatterns.aggregates.joinToString { "\"${it.className.replace("\"", "\\\"")}\"" }}],
+                "aggregates": [${architectureAnalysis.dddPatterns.aggregates.joinToString { "\"${it.rootEntity.replace("\"", "\\\"")}\"" }}],
                 "domainEvents": [${architectureAnalysis.dddPatterns.domainEvents.joinToString { "\"${it.className.replace("\"", "\\\"")}\"" }}]
             },
             "dependencyGraph": {

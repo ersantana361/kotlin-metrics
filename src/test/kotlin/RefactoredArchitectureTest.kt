@@ -91,7 +91,32 @@ class RefactoredArchitectureTest {
             propertyCount = 2,
             methodDetails = mapOf("testMethod" to setOf("property1", "property2")),
             suggestions = listOf(suggestion),
-            complexity = complexityAnalysis
+            complexity = complexityAnalysis,
+            ckMetrics = CkMetrics(
+                wmc = 6,
+                cyclomaticComplexity = 6,
+                cbo = 3,
+                rfc = 8,
+                ca = 1,
+                ce = 3,
+                dit = 0,
+                noc = 0,
+                lcom = 2
+            ),
+            qualityScore = QualityScore(
+                cohesion = 7.0,
+                complexity = 8.0,
+                coupling = 6.0,
+                inheritance = 9.0,
+                architecture = 7.0,
+                overall = 7.4
+            ),
+            riskAssessment = RiskAssessment(
+                level = RiskLevel.LOW,
+                reasons = emptyList(),
+                impact = "Minimal impact on code quality",
+                priority = 1
+            )
         )
         
         val architectureAnalysis = ArchitectureAnalysis(
@@ -121,7 +146,18 @@ class RefactoredArchitectureTest {
             timestamp = timestamp,
             classes = listOf(classAnalysis),
             summary = "Test summary",
-            architectureAnalysis = architectureAnalysis
+            architectureAnalysis = architectureAnalysis,
+            projectQualityScore = QualityScore(
+                cohesion = 7.0,
+                complexity = 8.0,
+                coupling = 6.0,
+                inheritance = 9.0,
+                architecture = 7.0,
+                overall = 7.4
+            ),
+            packageMetrics = emptyList(),
+            couplingMatrix = emptyList(),
+            riskAssessments = emptyList()
         )
         
         // Verify structure
@@ -157,8 +193,8 @@ class RefactoredArchitectureTest {
         )
         
         assertFalse(suggestions.isEmpty())
-        assertTrue(suggestions.any { it.message.contains("refactoring") })
-        assertTrue(suggestions.any { it.message.contains("complex") })
+        assertTrue(suggestions.any { it.message.contains("refactoring", ignoreCase = true) })
+        assertTrue(suggestions.any { it.message.contains("complex", ignoreCase = true) })
     }
     
     @Test

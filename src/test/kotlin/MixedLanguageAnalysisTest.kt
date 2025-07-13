@@ -39,6 +39,31 @@ class MixedLanguageAnalysisTest {
                 averageComplexity = 2.0,
                 maxComplexity = 2,
                 complexMethods = emptyList()
+            ),
+            ckMetrics = CkMetrics(
+                wmc = 6,
+                cyclomaticComplexity = 6,
+                cbo = 3,
+                rfc = 8,
+                ca = 1,
+                ce = 3,
+                dit = 0,
+                noc = 0,
+                lcom = 0
+            ),
+            qualityScore = QualityScore(
+                cohesion = 7.0,
+                complexity = 8.0,
+                coupling = 6.0,
+                inheritance = 9.0,
+                architecture = 7.0,
+                overall = 7.4
+            ),
+            riskAssessment = RiskAssessment(
+                level = RiskLevel.LOW,
+                reasons = emptyList(),
+                impact = "Minimal impact on code quality",
+                priority = 1
             )
         )
         
@@ -56,6 +81,31 @@ class MixedLanguageAnalysisTest {
                 averageComplexity = 1.0,
                 maxComplexity = 1,
                 complexMethods = emptyList()
+            ),
+            ckMetrics = CkMetrics(
+                wmc = 6,
+                cyclomaticComplexity = 6,
+                cbo = 3,
+                rfc = 8,
+                ca = 1,
+                ce = 3,
+                dit = 0,
+                noc = 0,
+                lcom = 1
+            ),
+            qualityScore = QualityScore(
+                cohesion = 7.0,
+                complexity = 8.0,
+                coupling = 6.0,
+                inheritance = 9.0,
+                architecture = 7.0,
+                overall = 7.4
+            ),
+            riskAssessment = RiskAssessment(
+                level = RiskLevel.LOW,
+                reasons = emptyList(),
+                impact = "Minimal impact on code quality",
+                priority = 1
             )
         )
         
@@ -84,7 +134,18 @@ class MixedLanguageAnalysisTest {
                     cycles = emptyList(),
                     packages = emptyList()
                 )
-            )
+            ),
+            projectQualityScore = QualityScore(
+                cohesion = 7.0,
+                complexity = 8.0,
+                coupling = 6.0,
+                inheritance = 9.0,
+                architecture = 7.0,
+                overall = 7.4
+            ),
+            packageMetrics = emptyList(),
+            couplingMatrix = emptyList(),
+            riskAssessments = emptyList()
         )
         
         // Verify mixed project analysis
@@ -190,7 +251,32 @@ class MixedLanguageAnalysisTest {
                     propertyCount = 1,
                     methodDetails = emptyMap(),
                     suggestions = emptyList(),
-                    complexity = ComplexityAnalysis(emptyList(), 0, 0.0, 0, emptyList())
+                    complexity = ComplexityAnalysis(emptyList(), 0, 0.0, 0, emptyList()),
+                    ckMetrics = CkMetrics(
+                        wmc = 6,
+                        cyclomaticComplexity = 6,
+                        cbo = 3,
+                        rfc = 8,
+                        ca = 1,
+                        ce = 3,
+                        dit = 0,
+                        noc = 0,
+                        lcom = 0
+                    ),
+                    qualityScore = QualityScore(
+                        cohesion = 7.0,
+                        complexity = 8.0,
+                        coupling = 6.0,
+                        inheritance = 9.0,
+                        architecture = 7.0,
+                        overall = 7.4
+                    ),
+                    riskAssessment = RiskAssessment(
+                        level = RiskLevel.LOW,
+                        reasons = emptyList(),
+                        impact = "Minimal impact on code quality",
+                        priority = 1
+                    )
                 ),
                 ClassAnalysis(
                     className = "JavaClass",
@@ -200,7 +286,32 @@ class MixedLanguageAnalysisTest {
                     propertyCount = 2,
                     methodDetails = emptyMap(),
                     suggestions = emptyList(),
-                    complexity = ComplexityAnalysis(emptyList(), 0, 0.0, 0, emptyList())
+                    complexity = ComplexityAnalysis(emptyList(), 0, 0.0, 0, emptyList()),
+                    ckMetrics = CkMetrics(
+                        wmc = 6,
+                        cyclomaticComplexity = 6,
+                        cbo = 3,
+                        rfc = 8,
+                        ca = 1,
+                        ce = 3,
+                        dit = 0,
+                        noc = 0,
+                        lcom = 1
+                    ),
+                    qualityScore = QualityScore(
+                        cohesion = 7.0,
+                        complexity = 8.0,
+                        coupling = 6.0,
+                        inheritance = 9.0,
+                        architecture = 7.0,
+                        overall = 7.4
+                    ),
+                    riskAssessment = RiskAssessment(
+                        level = RiskLevel.LOW,
+                        reasons = emptyList(),
+                        impact = "Minimal impact on code quality",
+                        priority = 1
+                    )
                 )
             ),
             summary = "Mixed language analysis completed",
@@ -225,7 +336,18 @@ class MixedLanguageAnalysisTest {
                     cycles = emptyList(),
                     packages = emptyList()
                 )
-            )
+            ),
+            projectQualityScore = QualityScore(
+                cohesion = 7.0,
+                complexity = 8.0,
+                coupling = 6.0,
+                inheritance = 9.0,
+                architecture = 7.0,
+                overall = 7.4
+            ),
+            packageMetrics = emptyList(),
+            couplingMatrix = emptyList(),
+            riskAssessments = emptyList()
         )
         
         assertNotNull(report)

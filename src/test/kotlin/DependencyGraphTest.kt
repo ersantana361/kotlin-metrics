@@ -236,7 +236,8 @@ class DependencyGraphTest {
             fileName = "ClassA.kt",
             packageName = "com.example",
             nodeType = NodeType.CLASS,
-            layer = null
+            layer = null,
+            language = "kotlin"
         )
         
         val nodeB = DependencyNode(
@@ -245,7 +246,8 @@ class DependencyGraphTest {
             fileName = "ClassB.kt",
             packageName = "com.example",
             nodeType = NodeType.CLASS,
-            layer = null
+            layer = null,
+            language = "kotlin"
         )
         
         val edgeAB = DependencyEdge(
@@ -356,7 +358,8 @@ class DependencyGraphTest {
                     fileName = ktFile.name,
                     packageName = packageName,
                     nodeType = determineNodeType(classOrObject),
-                    layer = layer
+                    layer = layer,
+                    language = "kotlin"
                 )
                 nodes.add(node)
             }

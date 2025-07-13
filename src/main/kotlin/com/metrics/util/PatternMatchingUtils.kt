@@ -48,4 +48,33 @@ object PatternMatchingUtils {
             (isNotAccessor && hasControlFlow) || hasBusinessKeywords
         }
     }
+    
+    // Additional pattern matching functions for tests
+    fun isTestClass(className: String): Boolean {
+        return className.endsWith("Test") || className.endsWith("Spec") || className.contains("Test")
+    }
+    
+    fun isUtilityClass(className: String): Boolean {
+        return className.endsWith("Utils") || className.endsWith("Helper") || className.endsWith("Util")
+    }
+    
+    fun isExceptionClass(className: String): Boolean {
+        return className.endsWith("Exception") || className.endsWith("Error")
+    }
+    
+    fun isControllerClass(className: String): Boolean {
+        return className.endsWith("Controller")
+    }
+    
+    fun isServiceClass(className: String): Boolean {
+        return className.endsWith("Service")
+    }
+    
+    fun isRepositoryClass(className: String): Boolean {
+        return className.endsWith("Repository")
+    }
+    
+    fun isEntityClass(className: String): Boolean {
+        return className.endsWith("Entity")
+    }
 }

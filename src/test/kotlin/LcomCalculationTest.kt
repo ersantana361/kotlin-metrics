@@ -15,6 +15,10 @@ import com.metrics.model.analysis.ClassAnalysis
 import com.metrics.model.analysis.ComplexityAnalysis
 import com.metrics.model.analysis.MethodComplexity
 import com.metrics.model.analysis.Suggestion
+import com.metrics.model.analysis.CkMetrics
+import com.metrics.model.analysis.QualityScore
+import com.metrics.model.analysis.RiskAssessment
+import com.metrics.model.analysis.RiskLevel
 import com.metrics.util.SuggestionGenerator
 import com.metrics.util.ComplexityCalculator
 import com.metrics.util.LcomCalculator
@@ -223,7 +227,32 @@ class LcomCalculationTest {
             propertyCount = propertyNames.size,
             methodDetails = methodPropertiesMap,
             suggestions = suggestions,
-            complexity = complexityAnalysis
+            complexity = complexityAnalysis,
+            ckMetrics = CkMetrics(
+                wmc = 6,
+                cyclomaticComplexity = 6,
+                cbo = 3,
+                rfc = 8,
+                ca = 1,
+                ce = 3,
+                dit = 0,
+                noc = 0,
+                lcom = lcom
+            ),
+            qualityScore = QualityScore(
+                cohesion = 7.0,
+                complexity = 8.0,
+                coupling = 6.0,
+                inheritance = 9.0,
+                architecture = 7.0,
+                overall = 7.4
+            ),
+            riskAssessment = RiskAssessment(
+                level = RiskLevel.LOW,
+                reasons = emptyList(),
+                impact = "Minimal impact on code quality",
+                priority = 1
+            )
         )
     }
     

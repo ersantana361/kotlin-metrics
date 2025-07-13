@@ -224,6 +224,31 @@ class ArchitectureAnalysisIntegrationTest {
                 averageComplexity = 2.0,
                 maxComplexity = 3,
                 complexMethods = emptyList()
+            ),
+            ckMetrics = CkMetrics(
+                wmc = 6,
+                cyclomaticComplexity = 6,
+                cbo = 3,
+                rfc = 8,
+                ca = 1,
+                ce = 3,
+                dit = 0,
+                noc = 0,
+                lcom = 2
+            ),
+            qualityScore = QualityScore(
+                cohesion = 7.0,
+                complexity = 8.0,
+                coupling = 6.0,
+                inheritance = 9.0,
+                architecture = 7.0,
+                overall = 7.4
+            ),
+            riskAssessment = RiskAssessment(
+                level = RiskLevel.LOW,
+                reasons = emptyList(),
+                impact = "Minimal impact on code quality",
+                priority = 1
             )
         )
         
@@ -281,7 +306,18 @@ class ArchitectureAnalysisIntegrationTest {
             timestamp = "2025-01-01 12:00:00",
             classes = listOf(classAnalysis),
             summary = "Integration test project analysis",
-            architectureAnalysis = architectureAnalysis
+            architectureAnalysis = architectureAnalysis,
+            projectQualityScore = QualityScore(
+                cohesion = 7.0,
+                complexity = 8.0,
+                coupling = 6.0,
+                inheritance = 9.0,
+                architecture = 7.0,
+                overall = 7.4
+            ),
+            packageMetrics = emptyList(),
+            couplingMatrix = emptyList(),
+            riskAssessments = emptyList()
         )
         
         // Verify complete report structure

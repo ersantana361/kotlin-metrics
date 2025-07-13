@@ -290,8 +290,7 @@ object DddPatternAnalyzer {
             .filterIsInstance<KtProperty>()
             .filter { property ->
                 val name = property.name?.lowercase() ?: ""
-                name == "id" || name.endsWith("id") || name == "uuid" ||
-                SpringAnnotationUtils.hasSpringAnnotation(classOrObject, "Id")
+                name == "id" || name.endsWith("id") || name == "uuid"
             }
             .mapNotNull { it.name }
     }

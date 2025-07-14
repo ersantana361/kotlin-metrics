@@ -18,14 +18,18 @@ object ArchitectureUtils {
      */
     fun inferLayer(packageName: String, className: String): String? {
         return when {
-            packageName.contains("controller") || packageName.contains("api") -> "presentation"
-            packageName.contains("service") || packageName.contains("application") -> "application"
+            // Package-based inference
+            packageName.contains("presentation") || packageName.contains("controller") || 
+            packageName.contains("api") || packageName.contains("web") -> "presentation"
+            packageName.contains("application") || packageName.contains("service") -> "application"
             packageName.contains("domain") || packageName.contains("model") -> "domain"
             packageName.contains("repository") || packageName.contains("data") -> "data"
             packageName.contains("infrastructure") || packageName.contains("config") -> "infrastructure"
-            className.endsWith("Controller") -> "presentation"
-            className.endsWith("Service") -> "application"
-            className.endsWith("Repository") -> "data"
+            
+            // Class name-based inference
+            className.endsWith("Controller") || className.endsWith("Api") -> "presentation"
+            className.endsWith("Service") || className.endsWith("Manager") -> "application"
+            className.endsWith("Repository") || className.endsWith("Dao") -> "data"
             className.endsWith("Entity") || className.endsWith("Model") -> "domain"
             className.endsWith("Config") || className.endsWith("Configuration") -> "infrastructure"
             else -> null

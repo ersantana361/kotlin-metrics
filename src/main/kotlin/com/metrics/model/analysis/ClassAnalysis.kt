@@ -8,5 +8,9 @@ data class ClassAnalysis(
     val propertyCount: Int,
     val methodDetails: Map<String, Set<String>>,
     val suggestions: List<Suggestion>,
-    val complexity: ComplexityAnalysis
+    val complexity: ComplexityAnalysis,
+    // Enhanced CK metrics
+    val ckMetrics: CkMetrics,
+    val qualityScore: QualityScore,
+    val riskAssessment: RiskAssessment
 )

@@ -12,6 +12,14 @@ object ComplexityCalculator {
     
     /**
      * Calculates cyclomatic complexity for a Kotlin method.
+     * Alias for calculateCyclomaticComplexity for backward compatibility.
+     */
+    fun calculateMethodComplexity(method: KtNamedFunction): Int {
+        return calculateCyclomaticComplexity(method)
+    }
+    
+    /**
+     * Calculates cyclomatic complexity for a Kotlin method.
      * Uses AST visitor pattern to count decision points.
      */
     fun calculateCyclomaticComplexity(method: KtNamedFunction): Int {

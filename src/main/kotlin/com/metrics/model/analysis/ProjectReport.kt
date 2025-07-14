@@ -6,5 +6,10 @@ data class ProjectReport(
     val timestamp: String,
     val classes: List<ClassAnalysis>,
     val summary: String,
-    val architectureAnalysis: ArchitectureAnalysis
+    val architectureAnalysis: ArchitectureAnalysis,
+    // Enhanced reporting
+    val projectQualityScore: QualityScore,
+    val packageMetrics: List<PackageMetrics>,
+    val couplingMatrix: List<CouplingRelation>,
+    val riskAssessments: List<RiskAssessment>
 )

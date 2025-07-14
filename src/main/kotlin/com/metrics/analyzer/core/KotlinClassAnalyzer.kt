@@ -26,6 +26,15 @@ class KotlinClassAnalyzer : ClassAnalyzer<KtClassOrObject> {
         // Calculate complexity
         val complexity = complexityCalculator.analyzeClassComplexity(classNode)
         
+        // Calculate CK metrics
+        val ckMetrics = com.metrics.util.CouplingCalculator.calculateCkMetrics(classNode, lcom, complexity)
+        
+        // Calculate quality score
+        val qualityScore = com.metrics.util.QualityScoreCalculator.calculateQualityScore(ckMetrics)
+        
+        // Generate risk assessment
+        val riskAssessment = com.metrics.util.QualityScoreCalculator.generateRiskAssessment(ckMetrics, qualityScore)
+        
         // Generate suggestions
         val suggestions = generateSuggestions(lcom, methodDetails, properties.map { it.name!! }, complexity)
         
@@ -37,7 +46,10 @@ class KotlinClassAnalyzer : ClassAnalyzer<KtClassOrObject> {
             propertyCount = properties.size,
             methodDetails = methodDetails,
             suggestions = suggestions,
-            complexity = complexity
+            complexity = complexity,
+            ckMetrics = ckMetrics,
+            qualityScore = qualityScore,
+            riskAssessment = riskAssessment
         )
     }
     

@@ -226,12 +226,38 @@ object DddPatternAnalyzer {
         
         val isEvent = confidence > 0.5
         
+        // Check additional properties for domain events
+        val isImmutable = checkIfImmutable(classOrObject)
+        val hasEventNaming = className.endsWith("Event") || className.contains("Event")
+        val hasTimestamp = checkForTimestamp(classOrObject)
+        
         return DddDomainEvent(
             className = className,
             fileName = fileName,
             isEvent = isEvent,
+            isImmutable = isImmutable,
+            hasEventNaming = hasEventNaming,
+            hasTimestamp = hasTimestamp,
             confidence = confidence.coerceAtMost(1.0)
         )
+    }
+    
+    /**
+     * Checks if a class is immutable (all properties are val).
+     */
+    private fun checkIfImmutable(classOrObject: KtClassOrObject): Boolean {
+        val classText = classOrObject.text
+        // Simple check - look for var declarations (mutable)
+        return !classText.contains("var ")
+    }
+    
+    /**
+     * Checks if a class has timestamp-related properties.
+     */
+    private fun checkForTimestamp(classOrObject: KtClassOrObject): Boolean {
+        val classText = classOrObject.text.lowercase()
+        return classText.contains("timestamp") || classText.contains("createdat") || 
+               classText.contains("occurredat") || classText.contains("eventtime")
     }
     
     /**
@@ -264,8 +290,7 @@ object DddPatternAnalyzer {
             .filterIsInstance<KtProperty>()
             .filter { property ->
                 val name = property.name?.lowercase() ?: ""
-                name == "id" || name.endsWith("id") || name == "uuid" ||
-                SpringAnnotationUtils.hasSpringAnnotation(classOrObject, "Id")
+                name == "id" || name.endsWith("id") || name == "uuid"
             }
             .mapNotNull { it.name }
     }

@@ -9,5 +9,5 @@ data class DependencyNode(
     val packageName: String,
     val nodeType: NodeType,
     val layer: String?,
-    val language: String = "Kotlin"
+    val language: String
 )

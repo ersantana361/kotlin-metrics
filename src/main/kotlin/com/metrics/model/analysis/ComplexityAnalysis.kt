@@ -5,5 +5,5 @@ data class ComplexityAnalysis(
     val totalComplexity: Int,
     val averageComplexity: Double,
     val maxComplexity: Int,
-    val complexMethods: List<MethodComplexity> // CC > 10
+    val complexMethods: List<MethodComplexity>
 )

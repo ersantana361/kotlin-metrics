@@ -265,16 +265,57 @@ fun analyzeProject(kotlinFiles: List<File>, javaFiles: List<File>): ProjectRepor
 ```
 
 ## Usage
-```bash
-# Build
-./gradlew fatJar
 
-# Run from project root (analyzes all .kt and .java files)
-kotlin-metrics
+### Building
+```bash
+# Build the standalone JAR
+./gradlew fatJar
 
 # Global alias setup
 alias kotlin-metrics="java -jar /path/to/kotlin-metrics-all-1.0.0.jar"
 ```
+
+### Command Line Interface
+```bash
+kotlin-metrics [OPTIONS]
+
+Options:
+  -f, --file <file>       Analyze a single file
+  -o, --output <file>     Output file for markdown report (default: stdout)
+  -d, --directory <dir>   Directory to analyze (default: current directory)
+  
+Output Formats:
+  --console               Generate console output (default for projects)
+  --html                  Generate HTML report (default for projects)
+  --markdown              Generate markdown report (default for single files)
+  
+Other:
+  -h, --help              Show this help message
+```
+
+### Usage Examples
+```bash
+# Project Analysis
+kotlin-metrics                                    # Console + HTML (default)
+kotlin-metrics --markdown                         # Markdown only
+kotlin-metrics --console --html --markdown       # All formats
+
+# Single File Analysis
+kotlin-metrics -f MyClass.kt                     # Markdown to stdout (default)
+kotlin-metrics -f MyClass.kt --console           # Console summary
+kotlin-metrics -f MyClass.kt --html              # HTML report
+kotlin-metrics -f MyClass.kt --markdown --html   # Multiple formats
+kotlin-metrics -f MyClass.kt -o report.md        # Markdown to file
+
+# Cross-language Support
+kotlin-metrics -f User.java --html               # Java file analysis
+kotlin-metrics -f UserService.kt --markdown      # Kotlin file analysis
+```
+
+### Output Formats
+- **Console**: Terminal summary with key metrics and priorities
+- **HTML**: Interactive 6-tab dashboard with visualizations and analysis
+- **Markdown**: Detailed structured report with complete CK metrics breakdown
 
 ## Development Notes
 
@@ -283,6 +324,8 @@ alias kotlin-metrics="java -jar /path/to/kotlin-metrics-all-1.0.0.jar"
 - **Quality Scoring Engine**: Multi-dimensional quality assessment
 - **Cross-Language Support**: Unified analysis for Kotlin and Java
 - **Enhanced Reporting**: 6-tab dashboard with interpretation guides
+- **Flexible CLI**: Clear output format control with multiple format support
+- **Markdown Reports**: Complete CK metrics breakdown with interpretations
 - **Backward Compatibility**: Existing projects work with enhanced features
 
 ### Code Quality Improvements (v2.0)
@@ -291,6 +334,14 @@ alias kotlin-metrics="java -jar /path/to/kotlin-metrics-all-1.0.0.jar"
 - **Enhanced Architecture**: Clean separation of concerns
 - **Performance Optimization**: Improved memory usage and processing speed
 
+### CLI Architecture (v2.0)
+- **Flexible Output Control**: `--console`, `--html`, `--markdown` flags
+- **Smart Defaults**: Context-aware default formats (project vs single file)
+- **Format Combinations**: Support for multiple output formats simultaneously
+- **Single File Analysis**: Dedicated analysis pipeline for individual files
+- **Cross-Language CLI**: Unified interface for Kotlin and Java files
+- **Enhanced Error Handling**: Clear validation and user-friendly error messages
+
 ### Future Extension Points
 - **Additional Metrics**: Lines of Code, Maintainability Index, Technical Debt
 - **Advanced Visualizations**: D3.js interactive dependency graphs
@@ -298,6 +349,8 @@ alias kotlin-metrics="java -jar /path/to/kotlin-metrics-all-1.0.0.jar"
 - **CI/CD Integration**: Quality gates and automated reporting
 - **Custom Rules**: User-defined architecture validation rules
 - **Export Formats**: JSON/XML export for external tools
+- **Batch Processing**: Multi-file analysis with pattern matching
+- **Config Files**: YAML/JSON configuration for custom thresholds
 
 ## Documentation
 - **[README.md](README.md)**: Complete user guide with examples

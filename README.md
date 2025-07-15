@@ -82,6 +82,8 @@ Comprehensive analysis of software architecture patterns and design quality:
 - **🌐 Multi-Language Support**: Analyzes Kotlin and Java files in mixed codebases
 - **📊 Complete CK Metrics**: All 9 Chidamber and Kemerer metrics with quality scoring
 - **🎨 Interactive HTML Reports**: Professional 6-tab dashboard with comprehensive analysis
+- **📝 Flexible Output Formats**: Choose console, HTML, or markdown reports with `--console`, `--html`, `--markdown`
+- **📄 Single File Analysis**: Dedicated analysis for individual Kotlin/Java files with detailed metrics
 - **📈 Advanced Analytics**: Quality correlation analysis, risk assessment, and trend identification
 - **🏗️ Architecture Visualization**: Layer diagrams, DDD patterns, and dependency graphs
 - **💡 Smart Interpretation Guides**: Detailed tooltips explaining metric importance and thresholds
@@ -116,14 +118,95 @@ source ~/.bashrc
 
 ## Usage
 
-### Basic Usage
-```bash
-# Navigate to your project root (Kotlin, Java, or mixed)
-cd /path/to/your/project
+### Command Line Interface
 
-# Run the analyzer - automatically detects .kt and .java files
-kotlin-metrics
+The tool provides flexible output options to generate exactly what you need:
+
+```bash
+kotlin-metrics [OPTIONS]
+
+Options:
+  -f, --file <file>       Analyze a single file
+  -o, --output <file>     Output file for markdown report (default: stdout)
+  -d, --directory <dir>   Directory to analyze (default: current directory)
+  
+Output Formats:
+  --console               Generate console output (default for projects)
+  --html                  Generate HTML report (default for projects)
+  --markdown              Generate markdown report (default for single files)
+  
+Other:
+  -h, --help              Show this help message
 ```
+
+### Project Analysis Examples
+
+```bash
+# Default: console summary + interactive HTML report
+kotlin-metrics
+
+# Console output only
+kotlin-metrics --console
+
+# HTML report only
+kotlin-metrics --html
+
+# Markdown report only
+kotlin-metrics --markdown
+
+# All three formats
+kotlin-metrics --console --html --markdown
+
+# Markdown report to file
+kotlin-metrics --markdown -o project_metrics.md
+
+# Analyze specific directory
+kotlin-metrics -d /path/to/project --html
+```
+
+### Single File Analysis Examples
+
+```bash
+# Default: detailed markdown to stdout
+kotlin-metrics -f MyClass.kt
+
+# Console summary of single file
+kotlin-metrics -f MyClass.kt --console
+
+# HTML report for single file
+kotlin-metrics -f MyClass.kt --html
+
+# Multiple formats for single file
+kotlin-metrics -f MyClass.kt --console --html --markdown
+
+# Markdown report to file
+kotlin-metrics -f MyClass.kt --markdown -o class_report.md
+
+# Both Java and Kotlin files supported
+kotlin-metrics -f User.java --html
+kotlin-metrics -f UserService.kt --markdown
+```
+
+### Output Format Details
+
+| Format | Project Analysis | Single File | Best Use Cases |
+|--------|------------------|-------------|----------------|
+| **Console** | Comprehensive terminal summary with key metrics and priorities | Concise summary with quality score and main metrics | Quick overview, CI/CD integration, terminal workflows |
+| **HTML** | Full 6-tab interactive dashboard with visualizations | Complete analysis in professional web format | Detailed analysis, presentations, team reviews |
+| **Markdown** | Structured project overview with class summaries | Complete metrics breakdown with interpretations | Documentation, code reviews, version control |
+
+### Quick Reference
+
+| Want to... | Command |
+|------------|---------|
+| Quick project overview | `kotlin-metrics --console` |
+| Full interactive analysis | `kotlin-metrics --html` |
+| Documentation-ready report | `kotlin-metrics --markdown` |
+| All formats | `kotlin-metrics --console --html --markdown` |
+| Single file analysis | `kotlin-metrics -f MyClass.kt` |
+| Single file to HTML | `kotlin-metrics -f MyClass.kt --html` |
+| Save markdown report | `kotlin-metrics --markdown -o report.md` |
+| Help | `kotlin-metrics --help` |
 
 ### Supported Project Types
 - **Kotlin-only projects**: Analyzes all `.kt` files with complete CK metrics
@@ -324,6 +407,9 @@ The tool provides unified analysis across Kotlin and Java:
 - ✅ **Complete CK Metrics Suite**: All 9 metrics implemented
 - ✅ **Quality Scoring System**: 0-10 scale with risk assessment
 - ✅ **Enhanced HTML Reports**: 6-tab dashboard with interpretation guides
+- ✅ **Flexible CLI Interface**: Clear output format control with `--console`, `--html`, `--markdown`
+- ✅ **Single File Analysis**: Dedicated analysis for individual Kotlin/Java files
+- ✅ **Markdown Reports**: Complete metrics breakdown with interpretations
 - ✅ **Correlation Analysis**: Statistical relationships between metrics
 - ✅ **Architecture Cleanup**: Eliminated code redundancy (35% smaller codebase)
 - ✅ **Backward Compatibility**: Existing projects work with enhanced features

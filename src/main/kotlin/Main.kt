@@ -3,6 +3,9 @@ import com.metrics.model.architecture.*
 import com.metrics.model.common.*
 import com.metrics.analyzer.core.KotlinCodeAnalyzer
 import com.metrics.analyzer.core.JavaCodeAnalyzer
+import com.metrics.analyzer.EnhancedPRDiffAnalyzer
+import com.metrics.analyzer.PRDiffAnalysisOptions
+import com.metrics.report.EnhancedPRReportGenerator
 import com.metrics.parser.MultiLanguageParser
 import com.metrics.report.console.ConsoleReportGenerator
 import com.metrics.report.html.HtmlReportGenerator
@@ -37,6 +40,11 @@ fun main(args: Array<String>) {
         // Handle single file analysis
         if (options.singleFile != null) {
             return analyzeSingleFile(options.singleFile, parser, kotlinAnalyzer, javaAnalyzer, options)
+        }
+        
+        // Handle PR diff analysis
+        if (options.prDiffFile != null) {
+            return analyzePRDiff(options.prDiffFile, options)
         }
         
         // Discover and parse source files for project analysis
@@ -104,6 +112,62 @@ fun main(args: Array<String>) {
 }
 
 /**
+ * Analyze a PR diff file and generate reports.
+ */
+private fun analyzePRDiff(diffFile: File, options: CliOptions) {
+    if (!diffFile.exists()) {
+        println("Error: PR diff file not found: ${diffFile.absolutePath}")
+        return
+    }
+    
+    println("Analyzing PR diff: ${diffFile.absolutePath}")
+    
+    try {
+        // Initialize the enhanced PR diff analyzer
+        val prAnalyzer = EnhancedPRDiffAnalyzer(File("."))
+        val analysisOptions = PRDiffAnalysisOptions(
+            includeTests = false,
+            contextLines = 3,
+            ignoreWhitespace = true
+        )
+        
+        // Perform analysis
+        val result = prAnalyzer.analyzePRDiff(diffFile, analysisOptions)
+        
+        // Generate reports based on requested formats
+        val reportGenerator = EnhancedPRReportGenerator()
+        
+        options.outputFormats.forEach { format ->
+            when (format) {
+                OutputFormat.CONSOLE -> {
+                    val consoleReport = reportGenerator.generateConsoleReport(result)
+                    println(consoleReport)
+                }
+                OutputFormat.HTML -> {
+                    val htmlFile = options.outputFile ?: File("pr-diff-report.html")
+                    reportGenerator.generateHTMLReport(result, htmlFile)
+                    println("HTML report generated: ${htmlFile.absolutePath}")
+                }
+                OutputFormat.MARKDOWN -> {
+                    val markdownFile = options.outputFile ?: File("pr-diff-report.md")
+                    reportGenerator.generateMarkdownReport(result, markdownFile)
+                    println("Markdown report generated: ${markdownFile.absolutePath}")
+                }
+                OutputFormat.JSON -> {
+                    val jsonFile = options.outputFile ?: File("pr-diff-report.json")
+                    reportGenerator.generateJSONReport(result, jsonFile)
+                    println("JSON report generated: ${jsonFile.absolutePath}")
+                }
+            }
+        }
+        
+    } catch (e: Exception) {
+        println("Error analyzing PR diff: ${e.message}")
+        e.printStackTrace()
+    }
+}
+
+/**
  * Discovers all source files in the given directory.
  */
 private fun discoverSourceFiles(directory: File): List<File> {
@@ -155,14 +219,15 @@ data class CliOptions(
     val outputFile: File? = null,
     val targetDir: File = File("."),
     val showHelp: Boolean = false,
-    val outputFormats: Set<OutputFormat> = setOf(OutputFormat.CONSOLE, OutputFormat.HTML)
+    val outputFormats: Set<OutputFormat> = setOf(OutputFormat.CONSOLE, OutputFormat.HTML),
+    val prDiffFile: File? = null
 )
 
 /**
  * Available output formats.
  */
 enum class OutputFormat {
-    CONSOLE, HTML, MARKDOWN
+    CONSOLE, HTML, MARKDOWN, JSON
 }
 
 /**
@@ -173,6 +238,7 @@ private fun parseArgs(args: Array<String>): CliOptions {
     var outputFile: File? = null
     var targetDir = File(".")
     var showHelp = false
+    var prDiffFile: File? = null
     val outputFormats = mutableSetOf<OutputFormat>()
     
     var i = 0
@@ -211,6 +277,17 @@ private fun parseArgs(args: Array<String>): CliOptions {
             "--console" -> {
                 outputFormats.add(OutputFormat.CONSOLE)
             }
+            "--json" -> {
+                outputFormats.add(OutputFormat.JSON)
+            }
+            "--pr-diff" -> {
+                if (i + 1 < args.size) {
+                    prDiffFile = File(args[++i])
+                } else {
+                    println("Error: --pr-diff requires a diff file path")
+                    showHelp = true
+                }
+            }
             "-h", "--help" -> {
                 showHelp = true
             }
@@ -224,16 +301,16 @@ private fun parseArgs(args: Array<String>): CliOptions {
     
     // Default output formats if none specified
     val finalOutputFormats = if (outputFormats.isEmpty()) {
-        if (singleFile != null) {
-            setOf(OutputFormat.MARKDOWN)  // Single file defaults to markdown
-        } else {
-            setOf(OutputFormat.CONSOLE, OutputFormat.HTML)  // Project defaults to console + HTML
+        when {
+            prDiffFile != null -> setOf(OutputFormat.CONSOLE)  // PR diff defaults to console
+            singleFile != null -> setOf(OutputFormat.MARKDOWN)  // Single file defaults to markdown
+            else -> setOf(OutputFormat.CONSOLE, OutputFormat.HTML)  // Project defaults to console + HTML
         }
     } else {
         outputFormats.toSet()
     }
     
-    return CliOptions(singleFile, outputFile, targetDir, showHelp, finalOutputFormats)
+    return CliOptions(singleFile, outputFile, targetDir, showHelp, finalOutputFormats, prDiffFile)
 }
 
 /**
@@ -247,13 +324,15 @@ private fun showHelp() {
         
         Options:
           -f, --file <file>       Analyze a single file
-          -o, --output <file>     Output file for markdown report (default: stdout)
+          -o, --output <file>     Output file for report (default: stdout)
           -d, --directory <dir>   Directory to analyze (default: current directory)
+          --pr-diff <file>        Analyze PR diff file with full context
           
         Output Formats:
           --console               Generate console output (default for projects)
           --html                  Generate HTML report (default for projects)
           --markdown              Generate markdown report (default for single files)
+          --json                  Generate JSON report (for CI/CD integration)
           
         Other:
           -h, --help              Show this help message
@@ -270,6 +349,11 @@ private fun showHelp() {
           kotlin-metrics -f MyClass.kt -o report.md        # Single file: markdown to file
           
           kotlin-metrics -d /path/to/project --console     # Custom directory: console only
+          
+          kotlin-metrics --pr-diff changes.diff            # PR diff: console output
+          kotlin-metrics --pr-diff pr.patch --html         # PR diff: HTML report
+          kotlin-metrics --pr-diff pr.diff --markdown -o pr-report.md  # PR diff: markdown to file
+          kotlin-metrics --pr-diff changes.patch --json    # PR diff: JSON for CI/CD
     """.trimIndent())
 }
 
@@ -339,6 +423,9 @@ private fun generateReports(report: ProjectReport, options: CliOptions) {
                 val markdownReporter = MarkdownReportGenerator(options.outputFile)
                 markdownReporter.generate(report)
             }
+            OutputFormat.JSON -> {
+                println("JSON output for project reports not yet implemented")
+            }
         }
     }
 }
@@ -370,6 +457,9 @@ private fun generateSingleFileReports(analysis: ClassAnalysis, options: CliOptio
                 val markdownReporter = MarkdownReportGenerator(options.outputFile)
                 val report = markdownReporter.generateSingleClassReport(analysis)
                 markdownReporter.writeReport(report)
+            }
+            OutputFormat.JSON -> {
+                println("JSON output for single file reports not yet implemented")
             }
         }
     }

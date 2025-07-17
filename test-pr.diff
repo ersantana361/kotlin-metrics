@@ -1,0 +1,42 @@
+diff --git a/src/main/kotlin/TestService.kt b/src/main/kotlin/TestService.kt
+index 1234567..abcdefg 100644
+--- a/src/main/kotlin/TestService.kt
++++ b/src/main/kotlin/TestService.kt
+@@ -1,15 +1,8 @@
+ class TestService {
+-    fun complexMethod() {
+-        if (condition1) {
+-            if (condition2) {
+-                if (condition3) {
+-                    if (condition4) {
+-                        doSomething()
+-                    }
+-                }
+-            }
+-        }
+-    }
++    fun simplifiedMethod() {
++        if (condition1 && condition2 && condition3 && condition4) {
++            doSomething()
++        }
++    }
+     
+     fun anotherMethod() {
+         println("Hello World")
+diff --git a/src/main/kotlin/UserService.kt b/src/main/kotlin/UserService.kt
+index 2345678..bcdef12 100644
+--- a/src/main/kotlin/UserService.kt
++++ b/src/main/kotlin/UserService.kt
+@@ -5,10 +5,7 @@ class UserService {
+     fun validateUser(user: User): Boolean {
+-        if (user.name != null) {
+-            if (user.name.isNotEmpty()) {
+-                return user.email != null && user.email.contains("@")
+-            }
+-        }
+-        return false
++        return !user.name.isNullOrEmpty() && 
++               !user.email.isNullOrEmpty() && 
++               user.email.contains("@")
+     }
+ }

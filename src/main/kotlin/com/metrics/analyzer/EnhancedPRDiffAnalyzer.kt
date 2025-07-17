@@ -1,7 +1,7 @@
 package com.metrics.analyzer
 
-import com.metrics.analyzer.kotlin.KotlinCodeAnalyzer
-import com.metrics.analyzer.java.JavaCodeAnalyzer
+import com.metrics.analyzer.core.KotlinCodeAnalyzer
+import com.metrics.analyzer.core.JavaCodeAnalyzer
 import com.metrics.util.*
 import java.io.File
 import java.nio.file.Paths

@@ -98,9 +98,9 @@ class ImpactAnalyzer(
                             if (dep.className == changedDep.className) {
                                 dependencyImpacts.add(DependencyImpact(
                                     affectedFile = filePath,
-                                    dependencyType = dep.type,
+                                    dependencyType = mapUtilDependencyType(dep.type),
                                     dependencyName = dep.className,
-                                    impactSeverity = calculateDependencyImpactSeverity(dep.type)
+                                    impactSeverity = calculateDependencyImpactSeverity(mapUtilDependencyType(dep.type))
                                 ))
                             }
                         }
@@ -188,7 +188,19 @@ class ImpactAnalyzer(
             DependencyType.INHERITANCE -> ImpactSeverity.HIGH
             DependencyType.COMPOSITION -> ImpactSeverity.MEDIUM
             DependencyType.USAGE -> ImpactSeverity.LOW
-            DependencyType.IMPORT -> ImpactSeverity.MINIMAL
+            DependencyType.ASSOCIATION -> ImpactSeverity.MINIMAL
+        }
+    }
+    
+    /**
+     * Maps util DependencyType to model DependencyType.
+     */
+    private fun mapUtilDependencyType(utilType: com.metrics.util.DependencyType): DependencyType {
+        return when (utilType) {
+            com.metrics.util.DependencyType.INHERITANCE -> DependencyType.INHERITANCE
+            com.metrics.util.DependencyType.COMPOSITION -> DependencyType.COMPOSITION
+            com.metrics.util.DependencyType.USAGE -> DependencyType.USAGE
+            com.metrics.util.DependencyType.IMPORT -> DependencyType.ASSOCIATION
         }
     }
 }

@@ -142,7 +142,7 @@ class SourceContextLoader {
                     )
                 }
                 val returnType = function.typeReference?.text ?: "Unit"
-                val visibility = function.visibilityModifier?.text ?: "public"
+                val visibility = "public" // Simplified for now
                 
                 signatures.add(MethodSignature(
                     name = name,

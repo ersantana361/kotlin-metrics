@@ -127,13 +127,15 @@ kotlin-metrics [OPTIONS]
 
 Options:
   -f, --file <file>       Analyze a single file
-  -o, --output <file>     Output file for markdown report (default: stdout)
+  -o, --output <file>     Output file for report (default: stdout)
   -d, --directory <dir>   Directory to analyze (default: current directory)
+  --pr-diff <file>        Analyze PR diff file with full context
   
 Output Formats:
   --console               Generate console output (default for projects)
   --html                  Generate HTML report (default for projects)
   --markdown              Generate markdown report (default for single files)
+  --json                  Generate JSON report (for CI/CD integration)
   
 Other:
   -h, --help              Show this help message
@@ -206,6 +208,10 @@ kotlin-metrics -f UserService.kt --markdown
 | Single file analysis | `kotlin-metrics -f MyClass.kt` |
 | Single file to HTML | `kotlin-metrics -f MyClass.kt --html` |
 | Save markdown report | `kotlin-metrics --markdown -o report.md` |
+| **PR diff analysis** | `kotlin-metrics --pr-diff changes.diff` |
+| **PR diff HTML report** | `kotlin-metrics --pr-diff pr.patch --html` |
+| **PR diff for GitHub** | `kotlin-metrics --pr-diff pr.diff --markdown -o pr-report.md` |
+| **PR diff for CI/CD** | `kotlin-metrics --pr-diff changes.patch --json` |
 | Help | `kotlin-metrics --help` |
 
 ### Supported Project Types
@@ -332,6 +338,206 @@ The generated HTML report provides comprehensive interactive analysis across 6 t
 - **Responsive Design**: Optimized for desktop, tablet, and mobile
 - **Export Capabilities**: Save filtered results and analysis reports
 - **Interpretation Guides**: Comprehensive tooltips and help system
+
+## 🚀 Enhanced PR Diff Analysis
+
+The tool now includes **enhanced PR diff analysis** that provides comprehensive insights into code changes with full source context. This goes beyond simple diff parsing to analyze the complete impact of changes across your entire codebase.
+
+### ✨ Key Features
+
+- **🔍 Complete Source Context**: Analyzes entire files, not just diff snippets
+- **📊 Full CK Metrics Comparison**: Before/after analysis with all 9 CK metrics
+- **🎯 Cross-File Impact Analysis**: Identifies ripple effects across the codebase
+- **🔧 Semantic Change Detection**: Detects method signatures, API changes, and behavioral modifications
+- **📈 Multiple Output Formats**: Console, HTML, Markdown, and JSON reports
+- **⚡ CI/CD Integration**: JSON output for automated quality gates
+
+### 🛠️ Usage
+
+```bash
+# Basic PR diff analysis (console output)
+kotlin-metrics --pr-diff changes.diff
+
+# Generate HTML report for detailed analysis
+kotlin-metrics --pr-diff pr.patch --html
+
+# Generate markdown report for GitHub/GitLab PR comments
+kotlin-metrics --pr-diff pr.diff --markdown -o pr-report.md
+
+# Generate JSON report for CI/CD integration
+kotlin-metrics --pr-diff changes.patch --json
+```
+
+### 📋 Creating PR Diff Files
+
+```bash
+# From current changes
+git diff > my-changes.diff
+
+# From a specific commit range
+git diff HEAD~3..HEAD > recent-changes.diff
+
+# From branch comparison
+git diff origin/main...HEAD > pr-changes.diff
+
+# From GitHub PR (using gh CLI)
+gh pr diff 123 > pr-123.diff
+```
+
+### 📊 Analysis Capabilities
+
+#### **Metrics Comparison**
+- **Before/After CK Metrics**: Complete comparison of all 9 CK metrics
+- **Quality Score Changes**: Overall quality impact assessment
+- **Complexity Analysis**: Method and class-level complexity changes
+- **Coupling Analysis**: Dependency changes and their impact
+
+#### **Impact Analysis**
+- **Directly Affected Files**: Files modified in the PR
+- **Indirectly Affected Files**: Files that depend on changed code
+- **Dependency Graph Analysis**: Cross-file relationship mapping
+- **Risk Assessment**: Critical/High/Medium/Low risk classification
+
+#### **Semantic Analysis**
+- **Method Changes**: Added, removed, or modified methods
+- **API Changes**: Public interface modifications with breaking change detection
+- **Signature Changes**: Parameter, return type, and visibility changes
+- **Behavioral Changes**: Logic flow and complexity modifications
+
+### 📈 Output Formats
+
+#### **Console Output**
+```
+========================================
+Enhanced PR Diff Analysis Report
+========================================
+Generated: 2024-01-15 14:30:22
+
+SUMMARY:
+--------
+Improvements: 3
+Regressions: 1
+Total Changes: 4
+Affected Files: 2
+Overall Impact: MEDIUM
+
+METRICS COMPARISON:
+------------------
+Improvements:
+  ✅ TestService.LCOM: 5.00 → 2.00 (-60.0%)
+  ✅ TestService.Quality Score: 4.2 → 7.1 (+69.0%)
+  ✅ TestService.Cyclomatic Complexity: 4 → 1 (-75.0%)
+
+Regressions:
+  ❌ UserService.Method Count: 3 → 2 (-33.3%)
+
+IMPACT ANALYSIS:
+---------------
+Risk Level: HIGH
+Impact Percentage: 15.5%
+Directly Affected Files: 2
+Indirectly Affected Files: 3
+```
+
+#### **HTML Report**
+- **Interactive Dashboard**: Bootstrap-based UI with charts and visualizations
+- **Before/After Comparison**: Side-by-side source code comparison
+- **Impact Visualization**: Dependency graphs and affected file lists
+- **Metrics Charts**: Interactive charts showing metric changes
+
+#### **Markdown Report**
+```markdown
+# 🚀 Enhanced PR Diff Analysis Report
+
+## 📊 Executive Summary
+
+| Metric | Count |
+|--------|-------|
+| 🟢 Improvements | 3 |
+| 🔴 Regressions | 1 |
+| 🔄 Total Changes | 4 |
+| 📁 Affected Files | 2 |
+
+**Overall Impact**: MEDIUM (2 net improvements)
+
+## 📈 Metrics Comparison
+
+### 🟢 Improvements
+- **TestService.LCOM**: 5.00 → 2.00 (-60.0% 🟢)
+- **TestService.Quality Score**: 4.2 → 7.1 (+69.0% 🟢)
+```
+
+#### **JSON Report**
+```json
+{
+  "timestamp": "2024-01-15T14:30:22",
+  "summary": {
+    "improvements": 3,
+    "regressions": 1,
+    "totalChanges": 4,
+    "affectedFiles": 2,
+    "overallImpact": "MEDIUM"
+  },
+  "metricsComparison": {
+    "improvements": [...],
+    "regressions": [...]
+  },
+  "impactAnalysis": {
+    "riskLevel": "HIGH",
+    "impactPercentage": 15.5,
+    "directlyAffectedFiles": [...],
+    "indirectlyAffectedFiles": [...]
+  }
+}
+```
+
+### 🔄 CI/CD Integration
+
+#### **GitHub Actions Example**
+```yaml
+name: PR Quality Analysis
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  quality-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Generate PR diff
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD > pr-changes.diff
+      
+      - name: Analyze code quality changes
+        run: |
+          kotlin-metrics --pr-diff pr-changes.diff --markdown --output pr-report.md
+      
+      - name: Comment PR
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('pr-report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+```
+
+#### **Quality Gates**
+```bash
+# Fail CI if quality decreases significantly
+kotlin-metrics --pr-diff pr.diff --json > metrics.json
+
+# Parse results and fail if regressions > improvements
+python check_quality_gate.py metrics.json
+```
 
 ## 🔍 Analysis Details
 

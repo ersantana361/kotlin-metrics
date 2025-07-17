@@ -310,12 +310,19 @@ kotlin-metrics -f MyClass.kt -o report.md        # Markdown to file
 # Cross-language Support
 kotlin-metrics -f User.java --html               # Java file analysis
 kotlin-metrics -f UserService.kt --markdown      # Kotlin file analysis
+
+# Enhanced PR Diff Analysis
+kotlin-metrics --pr-diff changes.diff            # Console output with full context
+kotlin-metrics --pr-diff pr.patch --html         # Interactive HTML report
+kotlin-metrics --pr-diff pr.diff --markdown -o pr-report.md  # GitHub/GitLab ready
+kotlin-metrics --pr-diff changes.patch --json    # CI/CD integration
 ```
 
 ### Output Formats
 - **Console**: Terminal summary with key metrics and priorities
 - **HTML**: Interactive 6-tab dashboard with visualizations and analysis
 - **Markdown**: Detailed structured report with complete CK metrics breakdown
+- **JSON**: Machine-readable format for CI/CD integration and automation
 
 ## Development Notes
 
@@ -335,20 +342,117 @@ kotlin-metrics -f UserService.kt --markdown      # Kotlin file analysis
 - **Performance Optimization**: Improved memory usage and processing speed
 
 ### CLI Architecture (v2.0)
-- **Flexible Output Control**: `--console`, `--html`, `--markdown` flags
-- **Smart Defaults**: Context-aware default formats (project vs single file)
+- **Flexible Output Control**: `--console`, `--html`, `--markdown`, `--json` flags
+- **Smart Defaults**: Context-aware default formats (project vs single file vs PR diff)
 - **Format Combinations**: Support for multiple output formats simultaneously
 - **Single File Analysis**: Dedicated analysis pipeline for individual files
 - **Cross-Language CLI**: Unified interface for Kotlin and Java files
+- **Enhanced PR Diff Analysis**: Complete source context with impact analysis
 - **Enhanced Error Handling**: Clear validation and user-friendly error messages
+
+## Enhanced PR Diff Analysis (v3.0)
+
+### Overview
+The Enhanced PR Diff Analysis feature provides comprehensive analysis of code changes with complete source context, going beyond simple diff parsing to understand the full impact of changes across the entire codebase.
+
+### Key Features
+- **Complete Source Context**: Analyzes entire files, not just diff snippets
+- **Cross-File Impact Analysis**: Identifies ripple effects across the codebase
+- **Semantic Change Detection**: Detects method signatures, API changes, behavioral modifications
+- **Full CK Metrics Comparison**: Before/after analysis with all 9 CK metrics
+- **Multiple Output Formats**: Console, HTML, Markdown, JSON with specialized formatting
+- **CI/CD Integration**: Automated quality gates and reporting
+
+### Architecture Components
+
+#### **Phase 1: Enhanced File Resolution and Context Loading**
+- **FileResolver**: Robust file path resolution from diff headers with multiple strategies
+- **DiffParser**: Complete Git unified diff format parsing with cross-language support
+- **SourceContextLoader**: Full source file parsing with AST analysis and method extraction
+
+#### **Phase 2: Full-Context Metrics and Impact Analysis**
+- **ImpactAnalyzer**: Comprehensive impact analysis identifying affected files and dependencies
+- **EnhancedVersionAnalyzer**: Full-context analysis integrating existing analyzers
+- **Context Metrics**: Additional metrics from complete source analysis (LOC, comments, visibility)
+
+#### **Phase 3: Semantic Change Detection**
+- **SemanticChangeAnalyzer**: Detects method changes, signature changes, behavioral modifications
+- **API Change Detection**: Identifies breaking changes and API surface modifications
+- **Change Risk Assessment**: Comprehensive risk analysis with impact levels
+
+#### **Phase 4: Enhanced Reporting**
+- **EnhancedPRDiffAnalyzer**: Main orchestrator integrating all analysis components
+- **EnhancedPRReportGenerator**: Multiple output formats with specialized PR diff formatting
+- **Interactive HTML Reports**: Bootstrap UI with charts and detailed visualizations
+- **GitHub/GitLab Integration**: Markdown reports optimized for PR comments
+
+#### **Phase 5: Performance Optimization**
+- **PerformanceOptimizer**: Caching, parallel processing, and performance monitoring
+- **MemoryMonitor**: Resource tracking and optimization for large codebases
+- **Comprehensive Testing**: Test suite covering all major functionality
+
+### Usage Patterns
+
+#### **Development Workflow**
+```bash
+# Quick console analysis during development
+kotlin-metrics --pr-diff current-changes.diff
+
+# Detailed analysis for code review
+kotlin-metrics --pr-diff pr.patch --html
+
+# Generate PR comment for team review
+kotlin-metrics --pr-diff pr.diff --markdown -o pr-comment.md
+```
+
+#### **CI/CD Integration**
+```bash
+# Automated quality gate
+kotlin-metrics --pr-diff pr.diff --json > quality-report.json
+
+# Fail pipeline if quality decreases
+python quality_gate_checker.py quality-report.json
+```
+
+### Output Formats Specialized for PR Analysis
+
+#### **Console Output**
+- Executive summary with improvements/regressions
+- Metrics comparison with percentage changes
+- Impact analysis with affected files
+- Risk assessment and recommendations
+
+#### **HTML Report**
+- Interactive dashboard with before/after comparisons
+- Source code visualization with diff highlighting
+- Dependency impact graphs
+- Comprehensive metrics charts
+
+#### **Markdown Report**
+- GitHub/GitLab optimized format
+- Emoji indicators for quick scanning
+- Collapsible sections for detailed analysis
+- Table format for easy comparison
+
+#### **JSON Report**
+- Complete structured data for automation
+- CI/CD pipeline integration
+- Quality gate decision making
+- Historical trend analysis
+
+### Integration with Existing Architecture
+- **Leverages existing analyzers**: KotlinCodeAnalyzer, JavaCodeAnalyzer
+- **Uses existing parsers**: MultiLanguageParser for consistency
+- **Extends existing models**: Enhanced versions of ClassAnalysis, ProjectReport
+- **Maintains compatibility**: Backward compatible with existing functionality
 
 ### Future Extension Points
 - **Additional Metrics**: Lines of Code, Maintainability Index, Technical Debt
 - **Advanced Visualizations**: D3.js interactive dependency graphs
-- **Historical Tracking**: Compare metrics over time
-- **CI/CD Integration**: Quality gates and automated reporting
+- **Historical Tracking**: Compare metrics over time with baseline support
+- **CI/CD Integration**: Enhanced quality gates and automated reporting
 - **Custom Rules**: User-defined architecture validation rules
-- **Export Formats**: JSON/XML export for external tools
+- **Export Formats**: Additional export formats for external tools
 - **Batch Processing**: Multi-file analysis with pattern matching
 - **Config Files**: YAML/JSON configuration for custom thresholds
 

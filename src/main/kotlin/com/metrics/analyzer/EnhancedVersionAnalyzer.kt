@@ -5,6 +5,7 @@ import com.metrics.analyzer.core.JavaCodeAnalyzer
 import com.metrics.model.analysis.ClassAnalysis
 import com.metrics.model.analysis.ProjectReport
 import com.metrics.model.architecture.ArchitectureAnalysis
+import com.metrics.parser.MultiLanguageParser
 import com.metrics.util.SourceContext
 import com.metrics.util.SourceContextLoader
 import com.metrics.util.SourceLanguage
@@ -23,6 +24,8 @@ class EnhancedVersionAnalyzer(
     private val impactAnalyzer: ImpactAnalyzer
 ) {
     
+    private val parser = MultiLanguageParser()
+    
     /**
      * Analyzes a complete version of the codebase with full context.
      * 
@@ -38,26 +41,18 @@ class EnhancedVersionAnalyzer(
         // Load source contexts for all files
         val sourceContexts = sourceContextLoader.loadMultipleContexts(sourceFiles)
         
-        // Separate by language
-        val kotlinFiles = mutableListOf<File>()
-        val javaFiles = mutableListOf<File>()
-        
-        sourceContexts.forEach { (filePath, context) ->
-            when (context.language) {
-                SourceLanguage.KOTLIN -> kotlinFiles.add(context.file)
-                SourceLanguage.JAVA -> javaFiles.add(context.file)
-            }
-        }
+        // Parse all files using the existing parser
+        val parsedFiles = parser.parseFiles(sourceFiles)
         
         // Perform traditional analysis
-        val kotlinAnalysis = if (kotlinFiles.isNotEmpty()) {
-            kotlinAnalyzer.analyze(kotlinFiles)
+        val kotlinAnalysis: List<ClassAnalysis> = if (parsedFiles.kotlinFiles.isNotEmpty()) {
+            kotlinAnalyzer.analyzeFiles(parsedFiles.kotlinFiles)
         } else {
             emptyList()
         }
         
-        val javaAnalysis = if (javaFiles.isNotEmpty()) {
-            javaAnalyzer.analyze(javaFiles)
+        val javaAnalysis: List<ClassAnalysis> = if (parsedFiles.javaCompilationUnits.isNotEmpty()) {
+            javaAnalyzer.analyzeFiles(parsedFiles.javaCompilationUnits, parsedFiles.originalJavaFiles)
         } else {
             emptyList()
         }
@@ -83,8 +78,8 @@ class EnhancedVersionAnalyzer(
             impactAnalysis = impactAnalysis,
             sourceContexts = sourceContexts,
             totalFiles = sourceFiles.size,
-            kotlinFiles = kotlinFiles.size,
-            javaFiles = javaFiles.size
+            kotlinFiles = parsedFiles.kotlinFiles.size,
+            javaFiles = parsedFiles.javaCompilationUnits.size
         )
     }
     
@@ -190,13 +185,16 @@ class EnhancedVersionAnalyzer(
                 domainEvents = emptyList()
             ),
             layeredArchitecture = com.metrics.model.architecture.LayeredArchitectureAnalysis(
-                packages = emptyList(),
-                violations = emptyList()
+                layers = emptyList(),
+                dependencies = emptyList(),
+                violations = emptyList(),
+                pattern = com.metrics.model.common.ArchitecturePattern.LAYERED
             ),
             dependencyGraph = com.metrics.model.architecture.DependencyGraph(
                 nodes = emptyList(),
                 edges = emptyList(),
-                cycles = emptyList()
+                cycles = emptyList(),
+                packages = emptyList()
             )
         )
         
@@ -205,7 +203,7 @@ class EnhancedVersionAnalyzer(
             classes = classAnalyses,
             summary = summary,
             architectureAnalysis = architectureAnalysis,
-            projectQualityScore = com.metrics.model.analysis.QualityScore(0.0, 0.0, 0.0, 0.0, 0.0),
+            projectQualityScore = com.metrics.model.analysis.QualityScore(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
             packageMetrics = emptyList(),
             couplingMatrix = emptyList(),
             riskAssessments = emptyList()
@@ -222,7 +220,7 @@ class EnhancedVersionAnalyzer(
         val totalClasses = enhancedAnalyses.size
         val avgQualityScore = enhancedAnalyses.map { it.originalAnalysis.qualityScore?.overall ?: 0.0 }.average()
         val highRiskClasses = enhancedAnalyses.count { 
-            it.originalAnalysis.riskAssessment?.riskLevel == com.metrics.model.analysis.RiskLevel.CRITICAL 
+            it.originalAnalysis.riskAssessment?.level == com.metrics.model.analysis.RiskLevel.CRITICAL 
         }
         
         val summary = StringBuilder()
